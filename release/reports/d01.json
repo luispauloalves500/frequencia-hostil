@@ -1,0 +1,75 @@
+{
+  "name": "d01",
+  "ok": false,
+  "checks": [
+    {
+      "label": "corrida com Shift",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "deslize com Ctrl durante a corrida (até 3,8 m)",
+      "ok": true,
+      "detail": "3.68 m"
+    },
+    {
+      "label": "salto com Espaço",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "vivo após 1 e 2 dardos",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "Riscador cai com o terceiro dardo",
+      "ok": false,
+      "detail": "disparos 2, acertos 2"
+    },
+    {
+      "label": "cada disparo gastou um dardo",
+      "ok": true,
+      "detail": "pente 22"
+    },
+    {
+      "label": "rodada 1: errou (3 disparos, 0 acertos), recebeu dano e morreu",
+      "ok": true,
+      "detail": "9 golpes"
+    },
+    {
+      "label": "rodada 1: \"Tentar novamente\" em foco",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "rodada 1: reinício com um único Riscador, vida e pente restaurados",
+      "ok": true,
+      "detail": "{\"all\":1,\"alive\":1,\"hp\":100,\"mag\":24}"
+    },
+    {
+      "label": "rodada 2: errou (3 disparos, 0 acertos), recebeu dano e morreu",
+      "ok": true,
+      "detail": "9 golpes"
+    },
+    {
+      "label": "rodada 2: \"Tentar novamente\" em foco",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "rodada 2: reinício com um único Riscador, vida e pente restaurados",
+      "ok": true,
+      "detail": "{\"all\":1,\"alive\":1,\"hp\":100,\"mag\":24}"
+    },
+    {
+      "label": "sem erros no console",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "notes": [
+    "vida após cada dardo: 32 → 32 → 16"
+  ],
+  "at": "2026-11-24T11:31:30.122Z"
+}

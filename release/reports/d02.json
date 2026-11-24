@@ -1,0 +1,75 @@
+{
+  "name": "d02",
+  "ok": true,
+  "checks": [
+    {
+      "label": "secundário marca o Estilhaço e custa 3 dardos",
+      "ok": true,
+      "detail": "pente 24 → 21"
+    },
+    {
+      "label": "acerto marcado causa 16 + 32",
+      "ok": true,
+      "detail": "dano 48"
+    },
+    {
+      "label": "Estilhaço marcado eliminado",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "mira inválida não gasta a baliza",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "atrás da grade os dois Riscadores respondem ao chamado",
+      "ok": true,
+      "detail": "[\"lured\",\"lured\"]"
+    },
+    {
+      "label": "Riscador atrás da parede sólida não responde ao chamado do lado da grade",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "atrás da parede sólida o Riscador mantém a patrulha",
+      "ok": true,
+      "detail": "[{\"state\":\"idle\",\"z\":8.807041827665111,\"x\":26.984824068101098}]"
+    },
+    {
+      "label": "armada e sem uso por 6 s, a baliza volta pronta",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "a pausa congela a baliza",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "secundário com pente abaixo do custo: clique seco, sem impacto e sem gasto",
+      "ok": true,
+      "detail": "pente 2, eventos dry"
+    },
+    {
+      "label": "cada dardo gasto corresponde a um disparo (primário 1, secundário 3)",
+      "ok": true,
+      "detail": "{\"spent\":22,\"shots\":19,\"marks\":1}"
+    },
+    {
+      "label": "a segunda rota (escada, passarela, rampa) volta ao início",
+      "ok": true,
+      "detail": "altura máx. 2.40 m, fim (4.4, -0.0)"
+    },
+    {
+      "label": "sem erros no console",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "notes": [
+    "recarga observada: 4.5 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)"
+  ],
+  "at": "2026-11-24T11:36:31.360Z"
+}

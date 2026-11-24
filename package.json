@@ -1,0 +1,25 @@
+{
+  "name": "frequencia-hostil",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "FREQUÊNCIA HOSTIL — FPS de ficção científica para navegador (F1 • Última Chamada)",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preview": "vite preview --host 0.0.0.0 --port 4391",
+    "e2e": "node e2e/run-all.mjs"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.187.0",
+    "playwright": "1.65.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
+  }
+}
