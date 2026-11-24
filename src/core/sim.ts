@@ -62,6 +62,7 @@ export class Sim {
   rand: () => number;
   damageMul = 1;
   playTimeBase = 0;
+  deathsBase = 0;
   /** limite de comuns ativos (diagnóstico) */
   maxActiveSeen = 0;
   private ctx: CreatureCtx;
@@ -102,6 +103,7 @@ export class Sim {
       this.arsenal = new Arsenal(); this.arsenal.restore(cp.weapons, cp.current);
       this.beacon = new Beacon(); if (cp.hasBeacon) this.beacon.acquire();
       this.playTimeBase = cp.playTime;
+      this.deathsBase = cp.deaths ?? 0;
     } else {
       this.hp = PLAYER.maxHp; this.medkits = 1; this.flags = {}; this.arsenal = new Arsenal(); this.beacon = new Beacon();
     }
@@ -116,7 +118,7 @@ export class Sim {
     return {
       phase: this.level.id, point, hp: Math.ceil(this.hp), medkits: this.medkits,
       weapons: this.arsenal.snapshot(), current: this.arsenal.current, hasBeacon: this.beacon.owned,
-      objective: this.objective, flags: { ...this.flags }, difficulty: this.difficulty, playTime: this.playTimeBase + this.stats.time,
+      objective: this.objective, flags: { ...this.flags }, difficulty: this.difficulty, playTime: this.playTimeBase + this.stats.time, deaths: this.deathsBase + this.stats.deaths,
     };
   }
 

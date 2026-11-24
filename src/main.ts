@@ -266,7 +266,12 @@ class Game {
         case "shot": if (e.hit) { this.hitT = e.killed ? 0.35 : 0.18; $("hitmark").setAttribute("stroke", e.killed ? "#ff9a5a" : e.marked ? "#9fffd0" : "#ffffff"); } break;
         case "hurt": this.hurtT = 0.5; this.damageIndicator(e.from); break;
         case "doorVibrate": this.directional(e.pos, e.label ?? "Entrada"); break;
-        case "death": this.deathTimer = 1.3; break;
+        case "death": {
+          this.deathTimer = 1.3;
+          // a queda entra no registro sem mover o ponto de retorno
+          if (this.lastCp) { this.lastCp = { ...this.lastCp, deaths: (this.lastCp.deaths ?? 0) + 1, playTime: sim.playTimeBase + sim.stats.time }; if (!this.replay) { const prev = this.store.load(); if (prev) this.store.save({ ...prev, checkpoint: this.lastCp }); } }
+          break;
+        }
         case "levelComplete": this.complete(e.route); break;
         case "pickup": this.toast(e.kind === "dardos" ? `+${e.amount} dardos` : "+1 curativo"); break;
       }
@@ -284,9 +289,9 @@ class Game {
     const acc = st.shots ? Math.round((st.hits / st.shots) * 100) : 0;
     $("resTable").innerHTML = [
       ["Tempo", `${mm}:${String(ss).padStart(2, "0")}`], ["Rota até a catraca", route], ["Criaturas derrubadas", String(st.kills)],
-      ["Precisão da Agulha", `${acc}%`], ["Quedas", String(st.deaths + (this.lastCp ? 0 : 0))], ["Chamados da baliza", String(st.pulses)], ["Dano recebido", String(Math.round(st.damageTaken))],
+      ["Precisão da Agulha", `${acc}%`], ["Quedas", String(sim.deathsBase + st.deaths)], ["Chamados da baliza", String(st.pulses)], ["Dano recebido", String(Math.round(st.damageTaken))],
     ].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
-    (window as any).__fhResult = { route, ...st };
+    (window as any).__fhResult = { route, ...st, deathsTotal: sim.deathsBase + st.deaths };
     this.show("result");
   }
 

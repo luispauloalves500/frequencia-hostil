@@ -7,3 +7,4 @@ test-results
 # documento de design do usuário (privado, não publicar)
 docs/GDD.md
 docs/GDD.pdf
+logs/

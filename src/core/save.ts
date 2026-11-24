@@ -15,6 +15,8 @@ export interface Checkpoint {
   flags: Record<string, boolean>;
   difficulty: Difficulty;
   playTime: number;
+  /** quedas acumuladas no capítulo (opcional para saves antigos) */
+  deaths?: number;
 }
 
 export interface SaveData {

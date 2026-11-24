@@ -108,7 +108,7 @@ export async function run(url) {
     R.note("roteiro térreo: " + t1.log.join(" | "));
     await waitFor(page, () => window.__fh.state === "result", null, 30000, "resultado");
     const res1 = await page.evaluate(() => ({ r: window.__fhResult, table: document.getElementById("resTable").innerText, focus: document.activeElement?.textContent }));
-    R.check("concluiu pelo térreo e exibiu o resultado de F1", res1.r.route === "térreo" && res1.table.includes("térreo"), res1.table.replace(/\n/g, " • "));
+    R.check("concluiu pelo térreo e exibiu o resultado de F1", res1.r.route === "térreo" && res1.table.includes("térreo") && res1.r.deathsTotal >= 1, res1.table.replace(/\n/g, " • "));
     await sleep(600);
     await page.screenshot({ path: SHOTS + "05-resultado-f1.png" });
     const after = await page.evaluate(() => { const d = window.__saves(); return { f2p: d.some((x) => x.checkpoint.phase === "F2P"), unlocked: d.some((x) => x.unlocked.includes("F2") && x.completed.includes("F1")) }; });
