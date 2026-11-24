@@ -41,7 +41,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 #subtitles .who { color: var(--amber); font-weight: 700; margin-right: 8px; }
 #subtitles .who.radio { color: #ff7070; }
 #dirs { position: absolute; inset: 0; }
-.dir { position: absolute; transform: translate(-50%, -50%); color: #ffb050; font-weight: 700; font-size: 0.8em; text-align: center; text-shadow: 0 0 4px #000; animation: pulse 0.25s infinite alternate; }
+.dir { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); will-change: transform; color: #ffb050; font-weight: 700; font-size: 0.8em; text-align: center; text-shadow: 0 0 4px #000; animation: pulse 0.25s infinite alternate; }
 .dir .arr { font-size: 2em; display: block; }
 .dmg { position: absolute; left: 50%; top: 50%; width: 260px; height: 260px; margin: -130px; border-radius: 50%; border: 10px solid transparent; border-top-color: rgba(255,60,40,0.75); filter: blur(2px); transition: opacity 0.6s; }
 #toast { position: absolute; right: 26px; top: 20px; padding: 8px 14px; background: rgba(5,10,14,0.75); border-right: 3px solid var(--amber); opacity: 0; transition: opacity 0.3s; }

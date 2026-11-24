@@ -52,7 +52,7 @@ export class Report {
 /** Abre o jogo com a qualidade pedida gravada nas opções (como faria o menu de Opções). */
 export async function openGame(page, url, query = "?debug=1", quality = "baixa") {
   await page.goto(url + query);
-  await page.evaluate((q) => { const o = JSON.parse(localStorage.getItem("fh.options") || "{}"); o.quality = q; localStorage.setItem("fh.options", JSON.stringify(o)); }, quality);
+  await page.evaluate((q) => { const o = JSON.parse(localStorage.getItem("fh.options") || "{}"); o.quality = q; o.perf = "max"; localStorage.setItem("fh.options", JSON.stringify(o)); }, quality);
   await page.reload();
   await waitFor(page, () => window.__fh?.state === "menu", null, 30000, "menu");
 }

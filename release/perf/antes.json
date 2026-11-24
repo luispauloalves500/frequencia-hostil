@@ -1,0 +1,89 @@
+{
+  "label": "antes",
+  "quality": "media",
+  "at": "2026-11-24T13:19:35.564Z",
+  "menuReadyMs": 3277,
+  "scenes": {
+    "menu": {
+      "drawCalls": 99,
+      "triangles": 7538,
+      "programs": 25,
+      "geometries": 88,
+      "textures": 25,
+      "pointLightsInScene": 31,
+      "lightsOn": 26,
+      "meshes": 205,
+      "visibleMeshes": 200,
+      "pointsAndLines": 3,
+      "jsMsMedian": 1.4,
+      "jsMsAvg": 1.48,
+      "frameMsWithGpuSyncMedian": 449.2,
+      "heapKBPerFrame": 96.5,
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "bilheteria": {
+      "drawCalls": 258,
+      "triangles": 12159,
+      "programs": 33,
+      "geometries": 215,
+      "textures": 39,
+      "pointLightsInScene": 31,
+      "lightsOn": 26,
+      "meshes": 310,
+      "visibleMeshes": 303,
+      "pointsAndLines": 5,
+      "jsMsMedian": 4.1,
+      "jsMsAvg": 4.89,
+      "frameMsWithGpuSyncMedian": 971.5,
+      "heapKBPerFrame": 363.4,
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "praca": {
+      "drawCalls": 143,
+      "triangles": 8672,
+      "programs": 33,
+      "geometries": 254,
+      "textures": 39,
+      "pointLightsInScene": 31,
+      "lightsOn": 26,
+      "meshes": 354,
+      "visibleMeshes": 346,
+      "pointsAndLines": 5,
+      "jsMsMedian": 3.3,
+      "jsMsAvg": 3.55,
+      "frameMsWithGpuSyncMedian": 782.5,
+      "heapKBPerFrame": 189.5,
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "embarque": {
+      "drawCalls": 51,
+      "triangles": 6190,
+      "programs": 33,
+      "geometries": 254,
+      "textures": 39,
+      "pointLightsInScene": 31,
+      "lightsOn": 26,
+      "meshes": 354,
+      "visibleMeshes": 346,
+      "pointsAndLines": 5,
+      "jsMsMedian": 1.6,
+      "jsMsAvg": 1.8,
+      "frameMsWithGpuSyncMedian": 596.7,
+      "heapKBPerFrame": 56.7,
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    }
+  },
+  "f1LoadMs": 118,
+  "bundle": [
+    {
+      "file": "index-BtqL3fns.js",
+      "kB": 734.4,
+      "gzipKB": 192.2
+    }
+  ],
+  "consoleErrors": []
+}

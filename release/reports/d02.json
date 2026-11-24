@@ -35,7 +35,7 @@
     {
       "label": "atrás da parede sólida o Riscador mantém a patrulha",
       "ok": true,
-      "detail": "[{\"state\":\"idle\",\"z\":8.582657392942656,\"x\":26.674923548082262}]"
+      "detail": "[{\"state\":\"idle\",\"z\":8.964278190987267,\"x\":26.878967399156817}]"
     },
     {
       "label": "armada e sem uso por 6 s, a baliza volta pronta",
@@ -70,7 +70,7 @@
   ],
   "notes": [
     "tentativa 2 do acerto marcado",
-    "recarga observada: 5.0 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)"
+    "recarga observada: 4.9 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)"
   ],
-  "at": "2026-11-24T12:18:51.873Z"
+  "at": "2026-11-24T13:42:25.592Z"
 }

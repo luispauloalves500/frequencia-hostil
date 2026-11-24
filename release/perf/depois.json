@@ -1,0 +1,109 @@
+{
+  "label": "depois",
+  "quality": "media",
+  "at": "2026-11-24T13:33:38.126Z",
+  "menuReadyMs": 2137,
+  "scenes": {
+    "menu": {
+      "drawCalls": 91,
+      "triangles": 8878,
+      "programs": 55,
+      "geometries": 80,
+      "textures": 25,
+      "pointLightsInScene": 55,
+      "lightsOn": 9,
+      "meshes": 171,
+      "visibleMeshes": 166,
+      "pointsAndLines": 3,
+      "jsMsMedian": 1.1,
+      "jsMsAvg": 1.16,
+      "frameMsWithGpuSyncMedian": 346,
+      "heapKBPerFrame": 67.3,
+      "lightPool": {
+        "sources": 29,
+        "inFrustum": 8,
+        "used": 8
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "bilheteria": {
+      "drawCalls": 204,
+      "triangles": 12557,
+      "programs": 63,
+      "geometries": 193,
+      "textures": 39,
+      "pointLightsInScene": 55,
+      "lightsOn": 13,
+      "meshes": 276,
+      "visibleMeshes": 269,
+      "pointsAndLines": 5,
+      "jsMsMedian": 2.3,
+      "jsMsAvg": 3.01,
+      "frameMsWithGpuSyncMedian": 700.4,
+      "heapKBPerFrame": 140.5,
+      "lightPool": {
+        "sources": 29,
+        "inFrustum": 21,
+        "used": 12
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "praca": {
+      "drawCalls": 130,
+      "triangles": 9591,
+      "programs": 63,
+      "geometries": 232,
+      "textures": 39,
+      "pointLightsInScene": 55,
+      "lightsOn": 13,
+      "meshes": 320,
+      "visibleMeshes": 312,
+      "pointsAndLines": 5,
+      "jsMsMedian": 2,
+      "jsMsAvg": 2.23,
+      "frameMsWithGpuSyncMedian": 598.8,
+      "heapKBPerFrame": 79.1,
+      "lightPool": {
+        "sources": 29,
+        "inFrustum": 12,
+        "used": 12
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "embarque": {
+      "drawCalls": 47,
+      "triangles": 7166,
+      "programs": 63,
+      "geometries": 232,
+      "textures": 39,
+      "pointLightsInScene": 55,
+      "lightsOn": 5,
+      "meshes": 320,
+      "visibleMeshes": 312,
+      "pointsAndLines": 5,
+      "jsMsMedian": 1.3,
+      "jsMsAvg": 1.43,
+      "frameMsWithGpuSyncMedian": 449.7,
+      "heapKBPerFrame": 35.6,
+      "lightPool": {
+        "sources": 29,
+        "inFrustum": 4,
+        "used": 4
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    }
+  },
+  "f1LoadMs": 164,
+  "bundle": [
+    {
+      "file": "index-BcQVS6gI.js",
+      "kB": 742,
+      "gzipKB": 194.7
+    }
+  ],
+  "consoleErrors": []
+}

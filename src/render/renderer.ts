@@ -13,6 +13,7 @@ import type { LevelDef } from "../levels/types";
 import { BEACON, ESTILHACO, RISCADOR } from "../config";
 import { dirFromYawPitch } from "../core/math";
 import * as TX from "./textures";
+import { LightPool } from "./lightPool";
 import { buildAgulha, buildBeaconDevice, buildEstilhaco, buildFerry, buildPickup, buildRiscador, fishDoor, rimMat, signMesh, type CreatureRig } from "./models";
 
 export type Quality = "baixa" | "media" | "alta";
@@ -55,18 +56,23 @@ function worldBoxGeo(b: { min: { x: number; y: number; z: number }; max: { x: nu
   return g;
 }
 
-interface Particle { pos: THREE.Vector3; vel: THREE.Vector3; life: number; max: number; color: THREE.Color; size: number; grav: number }
-
+/** Partículas em arrays fixos: nenhuma alocação por emissão ou por quadro. */
 class ParticlePool {
   points: THREE.Points;
-  list: Particle[] = [];
   private geo = new THREE.BufferGeometry();
   private posA: Float32Array; private colA: Float32Array; private sizeA: Float32Array;
-  constructor(private max: number, additive: boolean) {
-    this.posA = new Float32Array(max * 3); this.colA = new Float32Array(max * 3); this.sizeA = new Float32Array(max);
-    this.geo.setAttribute("position", new THREE.BufferAttribute(this.posA, 3));
-    this.geo.setAttribute("color", new THREE.BufferAttribute(this.colA, 3));
-    this.geo.setAttribute("size", new THREE.BufferAttribute(this.sizeA, 1));
+  // estado de simulação (estrutura de arrays)
+  private p: Float32Array; private v: Float32Array; private c: Float32Array;
+  private life: Float32Array; private max: Float32Array; private size: Float32Array; private grav: Float32Array;
+  private n = 0;
+  private tc = new THREE.Color();
+  constructor(private cap: number, additive: boolean) {
+    this.posA = new Float32Array(cap * 3); this.colA = new Float32Array(cap * 3); this.sizeA = new Float32Array(cap);
+    this.p = new Float32Array(cap * 3); this.v = new Float32Array(cap * 3); this.c = new Float32Array(cap * 3);
+    this.life = new Float32Array(cap); this.max = new Float32Array(cap); this.size = new Float32Array(cap); this.grav = new Float32Array(cap);
+    this.geo.setAttribute("position", new THREE.BufferAttribute(this.posA, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geo.setAttribute("color", new THREE.BufferAttribute(this.colA, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geo.setAttribute("size", new THREE.BufferAttribute(this.sizeA, 1).setUsage(THREE.DynamicDrawUsage));
     const mat = new THREE.ShaderMaterial({
       uniforms: { map: { value: TX.texGlow() } },
       vertexShader: `attribute float size; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix*vec4(position,1.0); gl_PointSize = size * 320.0 / -mv.z; gl_Position = projectionMatrix*mv; }`,
@@ -78,31 +84,65 @@ class ParticlePool {
     this.points = new THREE.Points(this.geo, mat);
     this.points.frustumCulled = false;
   }
+  clear() { this.n = 0; this.geo.setDrawRange(0, 0); }
+  get count() { return this.n; }
   emit(p: THREE.Vector3, n: number, color: number, speed: number, life: number, size: number, grav = 9, dirBias?: THREE.Vector3) {
-    for (let i = 0; i < n; i++) {
-      if (this.list.length >= this.max) this.list.shift();
-      const v = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.2, Math.random() - 0.5).normalize().multiplyScalar(speed * (0.4 + Math.random() * 0.8));
-      if (dirBias) v.addScaledVector(dirBias, speed * 0.6);
-      this.list.push({ pos: p.clone(), vel: v, life, max: life, color: new THREE.Color(color), size: size * (0.6 + Math.random() * 0.8), grav });
+    this.tc.set(color);
+    for (let k = 0; k < n; k++) {
+      let i: number;
+      if (this.n < this.cap) i = this.n++;
+      else { // cheio: substitui a partícula mais perto do fim
+        let best = 0; for (let j = 1; j < this.n; j++) if (this.life[j] < this.life[best]) best = j; i = best;
+      }
+      let vx = Math.random() - 0.5, vy = Math.random() - 0.2, vz = Math.random() - 0.5;
+      const l = Math.hypot(vx, vy, vz) || 1, m = (speed * (0.4 + Math.random() * 0.8)) / l;
+      vx *= m; vy *= m; vz *= m;
+      if (dirBias) { vx += dirBias.x * speed * 0.6; vy += dirBias.y * speed * 0.6; vz += dirBias.z * speed * 0.6; }
+      const i3 = i * 3;
+      this.p[i3] = p.x; this.p[i3 + 1] = p.y; this.p[i3 + 2] = p.z;
+      this.v[i3] = vx; this.v[i3 + 1] = vy; this.v[i3 + 2] = vz;
+      this.c[i3] = this.tc.r; this.c[i3 + 1] = this.tc.g; this.c[i3 + 2] = this.tc.b;
+      this.life[i] = life; this.max[i] = life; this.size[i] = size * (0.6 + Math.random() * 0.8); this.grav[i] = grav;
     }
   }
   update(dt: number) {
     let k = 0;
-    this.list = this.list.filter((p) => (p.life -= dt) > 0);
-    for (const p of this.list) {
-      p.vel.y -= p.grav * dt; p.pos.addScaledVector(p.vel, dt);
-      if (p.pos.y < 0.01 && p.grav > 0) { p.pos.y = 0.01; p.vel.multiplyScalar(0.3); }
-      const f = p.life / p.max;
-      this.posA[k * 3] = p.pos.x; this.posA[k * 3 + 1] = p.pos.y; this.posA[k * 3 + 2] = p.pos.z;
-      this.colA[k * 3] = p.color.r * f; this.colA[k * 3 + 1] = p.color.g * f; this.colA[k * 3 + 2] = p.color.b * f;
-      this.sizeA[k] = p.size; k++;
+    const P = this.p, V = this.v, C = this.c;
+    for (let i = 0; i < this.n; i++) {
+      const life = this.life[i] - dt;
+      if (life <= 0) continue;
+      const i3 = i * 3, k3 = k * 3;
+      V[i3 + 1] -= this.grav[i] * dt;
+      P[i3] += V[i3] * dt; P[i3 + 1] += V[i3 + 1] * dt; P[i3 + 2] += V[i3 + 2] * dt;
+      if (P[i3 + 1] < 0.01 && this.grav[i] > 0) { P[i3 + 1] = 0.01; V[i3] *= 0.3; V[i3 + 1] *= 0.3; V[i3 + 2] *= 0.3; }
+      // compacta no lugar (mantém a ordem)
+      if (k !== i) {
+        P[k3] = P[i3]; P[k3 + 1] = P[i3 + 1]; P[k3 + 2] = P[i3 + 2];
+        V[k3] = V[i3]; V[k3 + 1] = V[i3 + 1]; V[k3 + 2] = V[i3 + 2];
+        C[k3] = C[i3]; C[k3 + 1] = C[i3 + 1]; C[k3 + 2] = C[i3 + 2];
+        this.max[k] = this.max[i]; this.size[k] = this.size[i]; this.grav[k] = this.grav[i];
+      }
+      this.life[k] = life;
+      const f = life / this.max[k];
+      this.posA[k3] = P[k3]; this.posA[k3 + 1] = P[k3 + 1]; this.posA[k3 + 2] = P[k3 + 2];
+      this.colA[k3] = C[k3] * f; this.colA[k3 + 1] = C[k3 + 1] * f; this.colA[k3 + 2] = C[k3 + 2] * f;
+      this.sizeA[k] = this.size[k];
+      k++;
     }
+    this.n = k;
     this.geo.setDrawRange(0, k);
-    (this.geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (this.geo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
-    (this.geo.attributes.size as THREE.BufferAttribute).needsUpdate = true;
+    if (k) {
+      (this.geo.attributes.position as THREE.BufferAttribute).clearUpdateRanges(); (this.geo.attributes.position as THREE.BufferAttribute).addUpdateRange(0, k * 3);
+      (this.geo.attributes.color as THREE.BufferAttribute).clearUpdateRanges(); (this.geo.attributes.color as THREE.BufferAttribute).addUpdateRange(0, k * 3);
+      (this.geo.attributes.size as THREE.BufferAttribute).clearUpdateRanges(); (this.geo.attributes.size as THREE.BufferAttribute).addUpdateRange(0, k);
+      (this.geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+      (this.geo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+      (this.geo.attributes.size as THREE.BufferAttribute).needsUpdate = true;
+    }
   }
 }
+
+const UP = new THREE.Vector3(0, 1, 0);
 
 interface CreatureView { rig: CreatureRig; c: Creature; shadow: THREE.Mesh; dying: number }
 
@@ -131,6 +171,8 @@ export class Renderer {
   aimRing: THREE.Mesh;
   pulseRings: THREE.Mesh[] = [];
   rain: THREE.LineSegments | null = null;
+  rainTime = { value: 0 };
+  seaTime = { value: 0 };
   rainRects: [number, number, number, number][] = [];
   sea: THREE.Mesh | null = null;
   ferry: THREE.Group | null = null;
@@ -139,6 +181,7 @@ export class Renderer {
   vmBeacon = buildBeaconDevice();
   vmLight = new THREE.PointLight(0xffffff, 2, 3);
   muzzleLight = new THREE.PointLight(0x7ff6ff, 0, 6, 2);
+  lightPool!: LightPool;
   level: LevelDef | null = null;
   time = 0;
   shake = 0;
@@ -154,6 +197,11 @@ export class Renderer {
   fov = 75;
   hitFlashes: { c: string; t: number }[] = [];
   private tmpV = new THREE.Vector3();
+  private tmpA = new THREE.Vector3();
+  private tmpB = new THREE.Vector3();
+  private tmpCol = new THREE.Color();
+  private seenIds = new Set<string>();
+  private liveProj = new Set<number>();
   menuMode = false;
   private envRT: THREE.WebGLRenderTarget | null = null;
 
@@ -165,21 +213,22 @@ export class Renderer {
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.05, 400);
     this.camera.rotation.order = "YXZ";
     this.scene.add(this.levelRoot, this.dynRoot, this.sparks.points, this.shards.points, this.muzzleLight);
+    this.lightPool = new LightPool(this.scene, 12);
     const pm = new THREE.PMREMGenerator(this.renderer);
     this.envRT = pm.fromScene(new RoomEnvironment(), 0.04);
     this.scene.environment = this.envRT.texture;
     this.scene.environmentIntensity = 0.25;
     // baliza no mundo
     this.beaconWorld.root.visible = false; this.scene.add(this.beaconWorld.root);
-    const ringMat = (c: number) => new THREE.MeshBasicMaterial({ map: TX.texRing(), color: c, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+    const ringMat = (c: number) => new THREE.MeshBasicMaterial({ map: TX.texRing(), color: c, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false });
     this.rangeRing = new THREE.Mesh(new THREE.PlaneGeometry(BEACON.callRadius * 2, BEACON.callRadius * 2), ringMat(0x7ff6ff));
     this.rangeRing.rotation.x = -Math.PI / 2; this.rangeRing.visible = false; this.scene.add(this.rangeRing);
     this.aimRing = new THREE.Mesh(new THREE.PlaneGeometry(BEACON.callRadius * 2, BEACON.callRadius * 2), ringMat(0x9fffb0));
     this.aimRing.rotation.x = -Math.PI / 2; this.aimRing.visible = false; this.scene.add(this.aimRing);
-    const marker = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.22, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, depthWrite: false }));
+    const marker = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.22, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, forceSinglePass: true, transparent: true, depthWrite: false }));
     this.aimRing.add(marker); marker.rotation.x = 0; marker.position.z = 0.01;
     for (let i = 0; i < 3; i++) {
-      const r = new THREE.Mesh(new THREE.RingGeometry(0.94, 1, 48), new THREE.MeshBasicMaterial({ color: 0x9ff6ff, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+      const r = new THREE.Mesh(new THREE.RingGeometry(0.94, 1, 48), new THREE.MeshBasicMaterial({ color: 0x9ff6ff, transparent: true, opacity: 0.0, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
       r.rotation.x = -Math.PI / 2; r.visible = false; this.scene.add(r); this.pulseRings.push(r);
     }
     // viewmodel
@@ -196,8 +245,21 @@ export class Renderer {
 
   setQuality(q: Quality) {
     this.quality = q;
-    const pr = Math.min(window.devicePixelRatio || 1, q === "alta" ? 2 : 1.25);
-    this.renderer.setPixelRatio(q === "baixa" ? 0.75 : pr);
+    this.lightPool.setK(q === "alta" ? 16 : q === "media" ? 12 : 10);
+    this.applyPixelRatio();
+  }
+
+  /** Escala de resolução interna (1 = nativa da qualidade). Só o modo automático a reduz. */
+  renderScale = 1;
+  setRenderScale(k: number) {
+    k = Math.max(0.6, Math.min(1, Math.round(k * 20) / 20));
+    if (k === this.renderScale) return;
+    this.renderScale = k; this.applyPixelRatio();
+  }
+  private applyPixelRatio() {
+    const q = this.quality;
+    const pr = q === "baixa" ? 0.75 : Math.min(window.devicePixelRatio || 1, q === "alta" ? 2 : 1.25);
+    this.renderer.setPixelRatio(pr * this.renderScale);
     this.resize();
   }
 
@@ -223,10 +285,10 @@ export class Renderer {
     const disposeTree = (o: THREE.Object3D) => o.traverse((c) => { const m = c as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
     disposeTree(this.levelRoot); disposeTree(this.dynRoot);
     this.levelRoot.clear(); this.dynRoot.clear();
-    this.dynamicBoxes.clear(); this.lights = []; this.creatures.clear(); this.pickups.clear(); this.decorById.clear();
+    this.dynamicBoxes.clear(); this.lights = []; this.lightPool.clear(); this.creatures.clear(); this.pickups.clear(); this.decorById.clear();
     for (const s of this.projectiles.values()) s.removeFromParent(); this.projectiles.clear();
-    for (const t of this.tracers) t.line.removeFromParent(); this.tracers = [];
-    this.sparks.list = []; this.shards.list = [];
+    for (const t of this.tracers) { t.line.removeFromParent(); this.tracerFree.push(t.line); } this.tracers = [];
+    this.sparks.clear(); this.shards.clear();
     this.rain = null; this.sea = null; this.ferry = null;
   }
 
@@ -272,12 +334,19 @@ export class Renderer {
       this.levelRoot.add(mesh);
     }
     // luzes
+    const fixtureMats = new Map<string, THREE.MeshBasicMaterial>();
     for (const l of level.lights) {
       const pl = new THREE.PointLight(l.color, 0, l.distance * 1.3, 1.6);
       pl.position.set(l.pos.x, l.pos.y, l.pos.z);
-      const fixture = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.16), new THREE.MeshBasicMaterial({ color: new THREE.Color(l.color).multiplyScalar(l.intensity > 0 ? 1.5 : 0.1), toneMapped: false }));
+      // luminárias sem id dividem material por cor (e depois são mescladas); as com id mudam de cor em jogo
+      const fkey = `${l.color}|${l.intensity > 0}`;
+      const fmat = l.id ? new THREE.MeshBasicMaterial({ color: new THREE.Color(l.color).multiplyScalar(l.intensity > 0 ? 1.5 : 0.1), toneMapped: false })
+        : (fixtureMats.get(fkey) ?? fixtureMats.set(fkey, new THREE.MeshBasicMaterial({ color: new THREE.Color(l.color).multiplyScalar(l.intensity > 0 ? 1.5 : 0.1), toneMapped: false })).get(fkey)!);
+      const fixture = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.16), fmat);
+      if (l.id) fixture.userData.keep = true;
       fixture.position.set(l.pos.x, l.pos.y + 0.12, l.pos.z);
       this.levelRoot.add(pl, fixture);
+      this.lightPool.add(pl);
       this.lights.push({ light: pl, base: l.intensity * 2.2, flicker: l.flicker ?? 0, id: l.id, target: l.intensity > 0 ? 1 : 0, fixture });
     }
     // céu, mar e chuva
@@ -291,40 +360,130 @@ export class Renderer {
     if (env.sea) {
       const sg = new THREE.PlaneGeometry(320, 130, 64, 26);
       sg.rotateX(-Math.PI / 2); sg.translate(50, -1.2, -76);
-      sg.userData.base = Float32Array.from(sg.attributes.position.array as Float32Array);
-      this.sea = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ color: 0x0b2230, roughness: 0.18, metalness: 0.6, envMapIntensity: 1.2 }));
+      const seaMat = new THREE.MeshStandardMaterial({ color: 0x0b2230, roughness: 0.18, metalness: 0.6, envMapIntensity: 1.2 });
+      // ondas no shader (mesma fórmula de antes, normal analítica): nada de recalcular malha na CPU
+      seaMat.onBeforeCompile = (sh) => {
+        sh.uniforms.uTime = this.seaTime;
+        sh.vertexShader = "uniform float uTime;\n" + sh.vertexShader
+          .replace("#include <beginnormal_vertex>", `
+  float wx = position.x * 0.15 + uTime * 0.9, wz = position.z * 0.21 + uTime * 0.7;
+  vec3 objectNormal = normalize(vec3(-0.15 * 0.18 * cos(wx), 1.0, 0.21 * 0.14 * sin(wz)));
+  #ifdef USE_TANGENT
+  vec3 objectTangent = vec3(tangent.xyz);
+  #endif`)
+          .replace("#include <begin_vertex>", "#include <begin_vertex>\n  transformed.y += sin(wx) * 0.18 + cos(wz) * 0.14;");
+      };
+      this.sea = new THREE.Mesh(sg, seaMat);
+      this.sea.frustumCulled = false;
       this.levelRoot.add(this.sea);
       const quay = new THREE.Mesh(new THREE.BoxGeometry(110, 1, 5), this.mats.concreto.mat); quay.position.set(50, -0.7, -11.7); this.levelRoot.add(quay);
       for (let i = 0; i < 10; i++) {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.8, 8), this.mats.metal.mat); post.position.set(4 + i * 10, -0.2, -13.4); this.levelRoot.add(post);
       }
       for (let i = 0; i < 4; i++) {
-        const lamp = new THREE.PointLight(0xffb060, 18, 18, 1.6); lamp.position.set(10 + i * 26, 5, -13.5); this.levelRoot.add(lamp);
+        const lamp = new THREE.PointLight(0xffb060, 18, 18, 1.6); lamp.position.set(10 + i * 26, 5, -13.5); this.levelRoot.add(lamp); this.lightPool.add(lamp);
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 5.5), this.mats.metal.mat); pole.position.set(10 + i * 26, 2.2, -13.6); this.levelRoot.add(pole);
         const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22), new THREE.MeshBasicMaterial({ color: 0xffc070, toneMapped: false })); bulb.position.set(10 + i * 26, 5, -13.5); this.levelRoot.add(bulb);
       }
     }
     if (env.rain) {
+      // chuva animada no shader de vértice: nenhuma atualização de buffer por quadro
       this.rainRects = [[62, -9, 88, 9], [-10, -60, 110, -9.4]];
       const N = this.quality === "baixa" ? 700 : 1800;
-      const pos = new Float32Array(N * 6);
-      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      this.rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x8fa8c0, transparent: true, opacity: 0.35, depthWrite: false }));
+      const pos = new Float32Array(N * 6), drop = new Float32Array(N * 4);
+      for (let i = 0; i < N; i++) {
+        const r = this.rainRects[Math.random() < 0.45 ? 0 : 1];
+        const x = r[0] + Math.random() * (r[2] - r[0]), z = r[1] + Math.random() * (r[3] - r[1]);
+        const floorY = z < -9.4 ? -1.2 : 0;
+        pos.set([x, 0, z, x + 0.03, 0.45, z + 0.02], i * 6);
+        const y0 = Math.random() * 20;
+        drop.set([y0, floorY, y0, floorY], i * 4);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      g.setAttribute("aDrop", new THREE.BufferAttribute(drop, 2));
+      const mat = new THREE.LineBasicMaterial({ color: 0x8fa8c0, transparent: true, opacity: 0.35, depthWrite: false });
+      mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uTime = this.rainTime;
+        sh.vertexShader = "uniform float uTime;\nattribute vec2 aDrop;\n" + sh.vertexShader.replace("#include <begin_vertex>",
+          "#include <begin_vertex>\n  float span = 20.0 - aDrop.y;\n  transformed.y += aDrop.y + mod(aDrop.x - uTime * 16.0, span);");
+      };
+      this.rain = new THREE.LineSegments(g, mat);
       this.rain.frustumCulled = false;
-      for (let i = 0; i < N; i++) this.resetDrop(pos, i, true);
       this.levelRoot.add(this.rain);
     }
     // decoração
     for (const d of level.decor) this.buildDecor(d);
-    this.sparks.list = []; this.shards.list = [];
+    this.sparks.clear(); this.shards.clear();
+    this.mergeStatic();
+    this.warmup();
   }
 
-  private resetDrop(pos: Float32Array, i: number, anyY: boolean) {
-    const r = this.rainRects[Math.random() < 0.45 ? 0 : 1];
-    const x = r[0] + Math.random() * (r[2] - r[0]), z = r[1] + Math.random() * (r[3] - r[1]);
-    const y = anyY ? Math.random() * 18 : 16 + Math.random() * 4;
-    pos[i * 6] = x; pos[i * 6 + 1] = y; pos[i * 6 + 2] = z;
-    pos[i * 6 + 3] = x + 0.03; pos[i * 6 + 4] = y + 0.45; pos[i * 6 + 5] = z + 0.02;
+  /**
+   * Mescla malhas estáticas e opacas da decoração (sem id), postes, luminárias etc. por material.
+   * Mesmo desenho, bem menos chamadas de desenho.
+   */
+  private mergeStatic() {
+    this.levelRoot.updateMatrixWorld(true);
+    const dyn = new Set<THREE.Object3D>();
+    for (const g of this.decorById.values()) g.traverse((o) => dyn.add(o));
+    if (this.ferry) this.ferry.traverse((o) => dyn.add(o));
+    const groups = new Map<string, { mat: THREE.Material; meshes: THREE.Mesh[] }>();
+    this.levelRoot.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || dyn.has(m) || m.userData.keep || m === this.sea || m.parent === this.levelRoot && m.geometry.attributes.position.count > 5000) return;
+      const mat = m.material as THREE.Material;
+      if (Array.isArray(m.material) || mat.transparent || !m.visible || m.renderOrder !== 0) return;
+      const g = m.geometry; const a = g.attributes;
+      if (!a.position || !a.normal || !a.uv || Object.keys(a).length !== 3 || g.morphAttributes.position) return;
+      // só malhas fora de grupos animados; o próprio objeto e ancestrais precisam ser visíveis
+      let p: THREE.Object3D | null = m.parent, ok = true;
+      while (p && p !== this.levelRoot) { if (!p.visible) { ok = false; break; } p = p.parent; }
+      if (!ok) return;
+      const key = mat.uuid + (g.index ? "i" : "n");
+      if (!groups.has(key)) groups.set(key, { mat, meshes: [] });
+      groups.get(key)!.meshes.push(m);
+    });
+    for (const { mat, meshes } of groups.values()) {
+      if (meshes.length < 2) continue;
+      const geos = meshes.map((m) => m.geometry.clone().applyMatrix4(m.matrixWorld));
+      const merged = mergeGeometries(geos, false);
+      geos.forEach((g) => g.dispose());
+      if (!merged) continue;
+      for (const m of meshes) { m.removeFromParent(); m.geometry.dispose(); }
+      const mm = new THREE.Mesh(merged, mat);
+      mm.matrixAutoUpdate = false;
+      this.levelRoot.add(mm);
+    }
+    // grupos que ficaram vazios saem da cena
+    for (const c of [...this.levelRoot.children]) if (c.type === "Group" && c.children.length === 0 && !dyn.has(c)) c.removeFromParent();
+  }
+
+  /** Compila os shaders de tudo o que pode aparecer na fase durante o carregamento (sem engasgos na primeira aparição). */
+  private warmup() {
+    const tmp = new THREE.Group();
+    const r = buildRiscador(), e = buildEstilhaco();
+    tmp.add(r.root, e.root);
+    if (e.beam) { e.beam.visible = true; tmp.add(e.beam); }
+    for (const m of [...r.rims, ...e.rims]) m.visible = true;
+    r.mark.visible = true; e.mark.visible = true;
+    tmp.add(new THREE.Mesh(this.tracerGeo, new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
+    tmp.add(new THREE.Mesh(new THREE.CircleGeometry(0.5, 8), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false })));
+    tmp.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.texGlow(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
+    tmp.add(buildPickup("dardos"), buildPickup("curativo"));
+    const vis: THREE.Object3D[] = [];
+    for (const o of [this.beaconWorld.root, this.rangeRing, this.aimRing, ...this.pulseRings]) if (!o.visible) { o.visible = true; vis.push(o); }
+    this.scene.add(tmp);
+    try {
+      this.renderer.compile(this.scene, this.camera);
+      const vv = [this.vm.root, this.vmBeacon.root, this.vm.flash].filter((o) => !o.visible);
+      vv.forEach((o) => (o.visible = true));
+      this.renderer.compile(this.vmScene, this.vmCamera);
+      vv.forEach((o) => (o.visible = false));
+    } catch { /* sem contexto (testes) */ }
+    for (const o of vis) o.visible = false;
+    this.scene.remove(tmp);
+    tmp.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry && m.geometry !== this.tracerGeo) m.geometry.dispose(); });
   }
 
   private buildDecor(d: { kind: string; pos: { x: number; y: number; z: number }; rot?: number; size?: { x: number; y: number; z: number }; color?: number; text?: string; id?: string }) {
@@ -335,7 +494,7 @@ export class Renderer {
       case "sign": case "shelterSign": {
         const m = signMesh(d.text ?? "", d.color ?? 0xffffff);
         g.add(m);
-        const pl = new THREE.PointLight(d.color ?? 0xffffff, 3, 4, 2); pl.position.z = 0.4; g.add(pl);
+        const pl = new THREE.PointLight(d.color ?? 0xffffff, 3, 4, 2); pl.position.z = 0.4; g.add(pl); g.userData.vlights = [pl];
         break;
       }
       case "arrow": {
@@ -440,7 +599,7 @@ export class Renderer {
         const gun = buildAgulha().root; gun.scale.setScalar(1.6); gun.rotation.set(0, Math.PI / 2, Math.PI / 2.2); gun.position.set(0, 1.25, 0.1);
         const bea = buildBeaconDevice().root; bea.position.set(0.25, 0.5, 0.1); bea.scale.setScalar(1.6);
         g.add(door, glow, gun, bea);
-        g.userData.items = [gun, bea]; g.userData.glow = glow;
+        g.userData.items = [gun, bea]; g.userData.glow = glow; g.userData.vlights = [glow];
         break;
       }
       case "drip": { g.userData.drip = true; break; }
@@ -453,6 +612,7 @@ export class Renderer {
       }
     }
     this.levelRoot.add(g);
+    for (const l of (g.userData.vlights ?? []) as THREE.PointLight[]) this.lightPool.add(l);
     if (d.id) this.decorById.set(d.id, g);
   }
 
@@ -535,11 +695,14 @@ export class Renderer {
     }
   }
 
+  /** Traçantes reaproveitados: uma geometria unitária escalada, sem criar malha por disparo. */
+  private tracerGeo = (() => { const g = new THREE.CylinderGeometry(1, 0.4, 1, 5, 1, true); g.translate(0, 0.5, 0); g.rotateX(Math.PI / 2); return g; })();
+  private tracerFree: THREE.Mesh[] = [];
   addTracer(from: THREE.Vector3, to: THREE.Vector3, color: number, width: number) {
     const len = from.distanceTo(to);
-    const geo = new THREE.CylinderGeometry(width, width * 0.4, len, 5, 1, true);
-    geo.translate(0, len / 2, 0); geo.rotateX(Math.PI / 2);
-    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    const m = this.tracerFree.pop() ?? new THREE.Mesh(this.tracerGeo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    (m.material as THREE.MeshBasicMaterial).color.set(color); (m.material as THREE.MeshBasicMaterial).opacity = 0.9;
+    m.scale.set(width, width, len);
     m.position.copy(from); m.lookAt(to);
     this.scene.add(m);
     this.tracers.push({ line: m, life: 0.09 });
@@ -602,7 +765,7 @@ export class Renderer {
     this.muzzleLight.intensity = Math.max(0, this.muzzleLight.intensity - dt * 80);
 
     // criaturas
-    const seen = new Set<string>();
+    const seen = this.seenIds; seen.clear();
     for (const c of sim.creatures) {
       seen.add(c.id);
       let v = this.creatures.get(c.id);
@@ -622,7 +785,7 @@ export class Renderer {
     }
 
     // projéteis
-    const live = new Set<number>();
+    const live = this.liveProj; live.clear();
     for (const pr of sim.projectiles) {
       live.add(pr.id);
       let s = this.projectiles.get(pr.id);
@@ -684,27 +847,22 @@ export class Renderer {
 
     // traçantes e partículas
     for (const tr of this.tracers) { tr.life -= dt; (tr.line.material as THREE.MeshBasicMaterial).opacity = Math.max(0, tr.life / 0.09); }
-    this.tracers = this.tracers.filter((tr) => { if (tr.life <= 0) { tr.line.removeFromParent(); tr.line.geometry.dispose(); return false; } return true; });
+    for (let i = this.tracers.length - 1; i >= 0; i--) { const tr = this.tracers[i]; if (tr.life <= 0) { tr.line.removeFromParent(); this.tracerFree.push(tr.line); this.tracers.splice(i, 1); } }
     this.sparks.update(dt); this.shards.update(dt);
 
-    // chuva
+    // chuva: o shader anima; aqui só os respingos, na mesma taxa média de antes
+    this.rainTime.value += dt;
     if (this.rain) {
-      const pos = this.rain.geometry.attributes.position.array as Float32Array;
-      const n = pos.length / 6;
-      for (let i = 0; i < n; i++) {
-        pos[i * 6 + 1] -= dt * 16; pos[i * 6 + 4] -= dt * 16;
-        if (pos[i * 6 + 1] < (pos[i * 6 + 2] < -9.4 ? -1.2 : 0)) {
-          if (Math.random() < 0.08) this.sparks.emit(new THREE.Vector3(pos[i * 6], 0.02, pos[i * 6 + 2]), 1, 0x6080a0, 0.6, 0.2, 0.05, 3);
-          this.resetDrop(pos, i, false);
-        }
+      const n = (this.rain.geometry.attributes.position.count / 2) * dt * (16 / 19) * 0.08;
+      let k = Math.floor(n) + (Math.random() < n % 1 ? 1 : 0);
+      while (k-- > 0) {
+        const r = this.rainRects[Math.random() < 0.45 ? 0 : 1];
+        const z = r[1] + Math.random() * (r[3] - r[1]);
+        this.tmpV.set(r[0] + Math.random() * (r[2] - r[0]), 0.02, z);
+        this.sparks.emit(this.tmpV, 1, 0x6080a0, 0.6, 0.2, 0.05, 3);
       }
-      this.rain.geometry.attributes.position.needsUpdate = true;
     }
-    if (this.sea) {
-      const g = this.sea.geometry; const pa = g.attributes.position.array as Float32Array; const base = g.userData.base as Float32Array;
-      for (let i = 0; i < pa.length; i += 3) pa[i + 1] = base[i + 1] + Math.sin(base[i] * 0.15 + t * 0.9) * 0.18 + Math.cos(base[i + 2] * 0.21 + t * 0.7) * 0.14;
-      g.attributes.position.needsUpdate = true; g.computeVertexNormals();
-    }
+    this.seaTime.value = t;
 
     this.updateViewmodel(sim, dt, speed);
   }
@@ -715,9 +873,10 @@ export class Renderer {
     rig.root.position.set(c.pos.x, c.pos.y, c.pos.z);
     rig.root.rotation.y = c.yaw;
     v.shadow.position.set(c.pos.x, (Number.isNaN(sim.nav.floorAt(c.pos.x, c.pos.z)) ? c.pos.y : sim.nav.floorAt(c.pos.x, c.pos.z)) + 0.02, c.pos.z);
-    const flash = this.hitFlashes.find((h) => h.c === c.id);
+    let flash = false;
+    for (const h of this.hitFlashes) if (h.c === c.id) { flash = true; break; }
     for (const m of rig.mats) m.emissive.setRGB(flash ? 0.9 : 0, flash ? 0.95 : 0, flash ? 1 : 0);
-    this.hitFlashes = this.hitFlashes.filter((h) => (h.t -= dt / Math.max(1, this.creatures.size)) > 0);
+    for (let i = this.hitFlashes.length - 1; i >= 0; i--) if ((this.hitFlashes[i].t -= dt / Math.max(1, this.creatures.size)) <= 0) this.hitFlashes.splice(i, 1);
     rig.mark.visible = c.markT > 0 && c.alive;
     if (rig.mark.visible) rig.mark.rotation.y += dt * 3;
     if (!c.alive) {
@@ -761,13 +920,13 @@ export class Renderer {
       const beam = rig.beam!;
       beam.visible = c.state === "aim" && c.stateT >= 0 && c.stateT < ESTILHACO.aimTime;
       if (beam.visible) {
-        const muzzle = new THREE.Vector3(c.pos.x, c.pos.y + c.height * 0.85, c.pos.z);
-        const dir = new THREE.Vector3(c.aimDir.x, c.aimDir.y, c.aimDir.z);
+        const muzzle = this.tmpA.set(c.pos.x, c.pos.y + c.height * 0.85, c.pos.z);
+        const dir = this.tmpB.set(c.aimDir.x, c.aimDir.y, c.aimDir.z);
         const hit = sim.world.raycast(muzzle, c.aimDir, 60, ["solid", "grate", "ceiling"]);
-        const pd = muzzle.distanceTo(new THREE.Vector3(sim.player.pos.x, sim.player.pos.y + 1.2, sim.player.pos.z));
+        const pd = Math.hypot(muzzle.x - sim.player.pos.x, muzzle.y - sim.player.pos.y - 1.2, muzzle.z - sim.player.pos.z);
         const len = Math.min(hit ? hit.t : 60, pd + 1.5);
         beam.position.copy(muzzle).addScaledVector(dir, len / 2);
-        beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        beam.quaternion.setFromUnitVectors(UP, dir);
         const k = c.stateT / ESTILHACO.aimTime;
         beam.scale.set(1 + k * 3, len, 1 + k * 3);
         (beam.material as THREE.MeshBasicMaterial).opacity = 0.45 + k * 0.5 + Math.sin(t * 50) * 0.1;
@@ -816,7 +975,7 @@ export class Renderer {
     const ready = sim.beacon.state === "ready";
     (this.vmBeacon.light.material as THREE.MeshBasicMaterial).color.set(ready ? 0x7ff6ff : 0x305060);
     // luz do viewmodel aproxima a iluminação local
-    let best = 0; const col = new THREE.Color(0x8fa0b0);
+    let best = 0; const col = this.tmpCol.set(0x8fa0b0);
     for (const l of this.lights) {
       const d = l.light.position.distanceTo(this.camera.position);
       const w = l.light.intensity / (1 + d * d * 0.3);
@@ -839,15 +998,12 @@ export class Renderer {
       l.light.intensity = l.base * l.target * f;
     }
     if (this.ferry) this.ferry.position.y = Math.sin(this.time * 0.6) * 0.15 - 1.2;
-    if (this.rain) {
-      const pos = this.rain.geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < pos.length / 6; i++) { pos[i * 6 + 1] -= dt * 16; pos[i * 6 + 4] -= dt * 16; if (pos[i * 6 + 1] < -1) this.resetDrop(pos, i, false); }
-      this.rain.geometry.attributes.position.needsUpdate = true;
-    }
+    this.rainTime.value += dt;
     this.sparks.update(dt); this.shards.update(dt);
   }
 
   render() {
+    this.lightPool.update(this.camera);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     if (!this.menuMode) {
       this.renderer.autoClear = false;

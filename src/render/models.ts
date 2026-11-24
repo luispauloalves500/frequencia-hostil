@@ -3,7 +3,7 @@ import { texFish, texGlow, texSign } from "./textures";
 
 const ceramic = () => new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.35, metalness: 0.05, flatShading: true, emissive: 0x000000 });
 const darkCeramic = () => new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.5, flatShading: true });
-export const rimMat = (color = 0x6ff0ff) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+export const rimMat = (color = 0x6ff0ff) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true });
 
 export interface CreatureRig {
   root: THREE.Group;
@@ -197,7 +197,7 @@ export function buildPickup(kind: "dardos" | "curativo"): THREE.Group {
     band.rotation.z = Math.PI / 2; band.position.y = 0.14;
     g.add(body, band);
   }
-  const halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 24), new THREE.MeshBasicMaterial({ color: kind === "dardos" ? 0x5ff0ff : 0xffa23a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 24), new THREE.MeshBasicMaterial({ color: kind === "dardos" ? 0x5ff0ff : 0xffa23a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false }));
   halo.rotation.x = -Math.PI / 2; halo.position.y = 0.02;
   g.add(halo);
   g.userData.halo = halo;

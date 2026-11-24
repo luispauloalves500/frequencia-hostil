@@ -28,6 +28,19 @@ FPS de ficção científica para navegador. Lia Vilar atravessa o terminal de Po
 
 Salas de teste: `?sala=d00`, `?sala=d01`, `?sala=d02`.
 
+## Desempenho (v0.3.1)
+
+Opções → **Desempenho**: *Automático* (padrão) reduz a resolução interna em passos de 10% (até 60%) só quando os quadros passam de ~21 ms por alguns segundos e volta sozinho para 100% quando sobra folga; *Resolução máxima fixa* nunca mexe. O visual padrão é o mesmo de antes.
+
+O que deixou o jogo mais leve, sem cortar gráficos:
+- **Pool de luzes**: as ~30 luzes pontuais da fase viram fontes virtuais; a cada quadro só as que tocam o campo de visão são copiadas para 12 luzes reais (16 no Alto, 10 no Baixo), com transição suave. O custo por pixel cai pela metade ou mais.
+- **Chuva e mar na GPU** (shader), sem reescrever buffers no processador a cada quadro.
+- **Zero recompilação por quadro**: materiais transparentes de dupla face (contornos das criaturas, anéis) passam a desenhar em um passe só — o three.js recompilava os parâmetros desses materiais duas vezes por quadro.
+- **Menos lixo na memória**: partículas em vetores fixos, traçantes reaproveitados, vetores temporários, HUD que só escreve no DOM quando o valor muda.
+- **Decoração estática mesclada** por material (menos chamadas de desenho) e **shaders pré-compilados** no carregamento (sem travadinhas na primeira vez que algo aparece).
+
+Medição: `node e2e/perf.mjs <rótulo>` grava `release/perf/<rótulo>.json` e capturas em `release/screenshots/perf/`; `node tools/perf-table.mjs` compara antes/depois e `python3 tools/side-by-side.py` monta os comparativos.
+
 ## Desenvolvimento
 ```
 npm ci

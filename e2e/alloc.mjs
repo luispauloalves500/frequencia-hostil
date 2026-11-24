@@ -1,0 +1,25 @@
+// Amostra alocações por função numa cena (diagnóstico).
+import { chromium } from "playwright";
+import { startServer, sleep, waitFor } from "./lib.mjs";
+const srv = await startServer();
+const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
+await page.goto(srv.url + "?debug=1");
+await page.evaluate(() => { localStorage.setItem("fh.options", JSON.stringify({ quality: "media", perf: "max" })); });
+await page.reload();
+await waitFor(page, () => window.__fh?.state === "menu", null, 60000, "menu");
+await page.click('button[data-act="new"]'); await page.click('button[data-diff="normal"]');
+await waitFor(page, () => window.__fh.state === "playing", null, 60000, "F1");
+await page.evaluate(() => { const f = window.__fh; f.sim.damageMul = 0; f.setSpeed(0); const p = f.sim.player.pos; p.x = 27; p.z = -1.5; f.aimAt({ x: 36, y: 1.3, z: 3 }); });
+await sleep(1500);
+const cdp = await page.context().newCDPSession(page);
+await cdp.send("HeapProfiler.enable");
+await cdp.send("HeapProfiler.startSampling", { samplingInterval: 512, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
+const f0 = await page.evaluate(() => window.__fh.game.frameCount ?? 0);
+await sleep(15000);
+const { profile } = await cdp.send("HeapProfiler.stopSampling");
+const tot = new Map();
+(function walk(n, stack) { const name = `${n.callFrame.functionName || "(anon)"} ${n.callFrame.url.split("/").pop()}:${n.callFrame.lineNumber}`; const self = n.selfSize; if (self) tot.set(name, (tot.get(name) ?? 0) + self); for (const c of n.children) walk(c); })(profile.head);
+const rows = [...tot].sort((a, b) => b[1] - a[1]).slice(0, 30);
+for (const [k, v] of rows) console.log((v / 1024).toFixed(0).padStart(8), "KB", k);
+await browser.close(); srv.stop();
