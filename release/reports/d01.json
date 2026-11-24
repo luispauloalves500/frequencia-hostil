@@ -1,6 +1,6 @@
 {
   "name": "d01",
-  "ok": false,
+  "ok": true,
   "checks": [
     {
       "label": "corrida com Shift",
@@ -24,13 +24,13 @@
     },
     {
       "label": "Riscador cai com o terceiro dardo",
-      "ok": false,
-      "detail": "disparos 2, acertos 2"
+      "ok": true,
+      "detail": "disparos 3, acertos 3"
     },
     {
       "label": "cada disparo gastou um dardo",
       "ok": true,
-      "detail": "pente 22"
+      "detail": "pente 21"
     },
     {
       "label": "rodada 1: errou (3 disparos, 0 acertos), recebeu dano e morreu",
@@ -69,7 +69,7 @@
     }
   ],
   "notes": [
-    "vida após cada dardo: 32 → 32 → 16"
+    "vida após cada dardo: 32 → 16 → 0"
   ],
-  "at": "2026-11-24T11:31:30.122Z"
+  "at": "2026-11-24T11:54:20.015Z"
 }

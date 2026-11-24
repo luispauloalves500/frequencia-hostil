@@ -45,11 +45,11 @@
   ],
   "notes": [
     "máquina de automação: Chromium headless 158.0.8127.18 • GPU: ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
-    "ciclo 1: Lia em (5.90, 0.00, 1.50), estado playing",
-    "ciclo 2: Lia em (7.79, 0.00, 0.12), estado playing",
-    "ciclo 3: Lia em (7.09, 0.00, -0.43), estado playing",
-    "ciclo 4: Lia em (5.30, 0.00, 0.93), estado playing",
-    "ciclo 5: Lia em (7.48, 0.00, 2.59), estado playing"
+    "ciclo 1: Lia em (13.94, 0.00, 7.85), estado playing",
+    "ciclo 2: Lia em (19.99, 0.00, 2.38), estado playing",
+    "ciclo 3: Lia em (13.72, 0.00, -2.39), estado playing",
+    "ciclo 4: Lia em (7.62, 0.00, 3.25), estado playing",
+    "ciclo 5: Lia em (17.49, 0.00, 10.51), estado playing"
   ],
-  "at": "2026-11-24T11:27:31.662Z"
+  "at": "2026-11-24T11:53:47.043Z"
 }

@@ -169,8 +169,8 @@ export function buildAgulha(): { root: THREE.Group; mag: THREE.Mesh; coils: THRE
 /** Emissor da baliza (mão esquerda e mundo). */
 export function buildBeaconDevice(): { root: THREE.Group; light: THREE.Mesh } {
   const root = new THREE.Group();
-  const shell = new THREE.MeshStandardMaterial({ color: 0x7a6a55, roughness: 0.6, metalness: 0.3 });
-  const cer = new THREE.MeshStandardMaterial({ color: 0xe6dfd0, roughness: 0.3 });
+  const shell = new THREE.MeshStandardMaterial({ color: 0x4a4238, roughness: 0.6, metalness: 0.5 });
+  const cer = new THREE.MeshStandardMaterial({ color: 0x6d7378, roughness: 0.55, metalness: 0.3, emissive: 0x0d3440, emissiveIntensity: 0.6 });
   const a = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.14, 8), shell);
   const b = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), cer); b.position.y = 0.09;
   const light = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 4), new THREE.MeshBasicMaterial({ color: 0x7ff6ff }));

@@ -187,8 +187,8 @@ export class Renderer {
     this.vmCamera.add(this.vm.root);
     this.vm.root.position.set(0.17, -0.17, -0.34);
     this.vmCamera.add(this.vmBeacon.root);
-    this.vmBeacon.root.position.set(-0.24, -0.2, -0.38);
-    this.vmBeacon.root.scale.setScalar(0.9);
+    this.vmBeacon.root.position.set(-0.27, -0.24, -0.42);
+    this.vmBeacon.root.scale.setScalar(0.7);
     this.vmScene.add(new THREE.HemisphereLight(0x8fb0d0, 0x202020, 1.4));
     const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(1, 2, 1); this.vmScene.add(key);
     this.vmCamera.add(this.vmLight); this.vmLight.position.set(0.3, 0.3, 0);
@@ -812,7 +812,7 @@ export class Renderer {
     this.vm.coils.forEach((c, i) => ((c.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2 + Math.sin(this.time * 6 + i) * 0.4 + this.recoil * 3));
     // baliza na mão esquerda
     const ty = -0.2 - (this.throwAnim > 0 ? Math.sin((this.throwAnim / 0.4) * Math.PI) * 0.1 : 0) + bob;
-    this.vmBeacon.root.position.set(-0.24, ty, -0.38);
+    this.vmBeacon.root.position.set(-0.27, ty - 0.04, -0.42);
     const ready = sim.beacon.state === "ready";
     (this.vmBeacon.light.material as THREE.MeshBasicMaterial).color.set(ready ? 0x7ff6ff : 0x305060);
     // luz do viewmodel aproxima a iluminação local
