@@ -35,7 +35,7 @@
     {
       "label": "atrás da parede sólida o Riscador mantém a patrulha",
       "ok": true,
-      "detail": "[{\"state\":\"idle\",\"z\":8.782986611953769,\"x\":26.754307236944268}]"
+      "detail": "[{\"state\":\"idle\",\"z\":8.582657392942656,\"x\":26.674923548082262}]"
     },
     {
       "label": "armada e sem uso por 6 s, a baliza volta pronta",
@@ -50,17 +50,17 @@
     {
       "label": "secundário com pente abaixo do custo: clique seco, sem impacto e sem gasto",
       "ok": true,
-      "detail": "pente 1, eventos dry"
+      "detail": "pente 2, eventos dry"
     },
     {
       "label": "cada dardo gasto corresponde a um disparo (primário 1, secundário 3)",
       "ok": true,
-      "detail": "{\"spent\":23,\"shots\":20,\"marks\":1}"
+      "detail": "{\"spent\":22,\"shots\":19,\"marks\":1}"
     },
     {
       "label": "a segunda rota (escada, passarela, rampa) volta ao início",
       "ok": true,
-      "detail": "altura máx. 2.40 m, fim (4.2, 0.0)"
+      "detail": "altura máx. 2.40 m, fim (4.4, 0.0)"
     },
     {
       "label": "sem erros no console",
@@ -69,7 +69,8 @@
     }
   ],
   "notes": [
-    "recarga observada: 4.8 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)"
+    "tentativa 2 do acerto marcado",
+    "recarga observada: 5.0 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)"
   ],
-  "at": "2026-11-24T11:55:18.438Z"
+  "at": "2026-11-24T12:18:51.873Z"
 }

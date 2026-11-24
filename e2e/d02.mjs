@@ -24,9 +24,16 @@ export async function run(url) {
     const mag1 = await page.evaluate(() => window.__fh.sim.arsenal.ammo().mag);
     e = await est();
     R.check("secundário marca o Estilhaço e custa 3 dardos", e.mark > 0 && mag0 - mag1 === 3, `pente ${mag0} → ${mag1}`);
-    await sleep(900);
-    e = await est(); await aim(page, e.center); await click(page);
-    await waitFor(page, () => window.__fh.events().some((e) => e.type === "shot" && e.marked), null, 4000, "acerto marcado").catch(() => {});
+    // dispara até o acerto marcado (o Estilhaço se move; se a marca expirar, marca de novo)
+    for (let tries = 0; tries < 6; tries++) {
+      await sleep(700);
+      e = await est();
+      if (!e.alive || (await page.evaluate(() => window.__fh.events().some((e) => e.type === "shot" && e.marked)))) break;
+      await aim(page, e.center);
+      await click(page, e.mark > 0 ? "left" : "right");
+      await sleep(500);
+      if (tries > 0) R.note(`tentativa ${tries + 1} do acerto marcado`);
+    }
     const markedShot = await page.evaluate(() => window.__fh.events().find((e) => e.type === "shot" && e.marked));
     R.check("acerto marcado causa 16 + 32", markedShot?.dmg === 48, `dano ${markedShot?.dmg}`);
     for (let i = 0; i < 6 && (await est()).alive; i++) { await sleep(900); e = await est(); await aim(page, e.center); await click(page); await sleep(300); }

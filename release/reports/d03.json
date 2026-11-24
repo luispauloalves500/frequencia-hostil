@@ -100,7 +100,7 @@
     {
       "label": "concluiu pela passarela (escada, dardos, rampa) e exibiu o resultado",
       "ok": true,
-      "detail": "Tempo\t0:54 • Rota até a catraca\tpassarela • Criaturas derrubadas\t7 • Precisão da Agulha\t100% • Quedas\t1 • Chamados da baliza\t0 • Dano recebido\t0"
+      "detail": "Tempo\t0:55 • Rota até a catraca\tpassarela • Criaturas derrubadas\t7 • Precisão da Agulha\t100% • Quedas\t1 • Chamados da baliza\t0 • Dano recebido\t0"
     },
     {
       "label": "sem erros no console",
@@ -109,11 +109,11 @@
     }
   ],
   "notes": [
-    "carregamento de F1: 104 ms (headless, SwiftShader)",
+    "carregamento de F1: 391 ms (headless, SwiftShader)",
     "roteiro tutorial: [1.1s] pegou Agulha e baliza | [5.6s] passou sob a persiana agachado: true | [8.2s] chamado emitido na marca de giz | [8.2s] trinco aberto; Riscadores da demonstração atraídos: 2 | [12.3s] Riscador solto derrubado | [15.4s] guichê limpo | [18.2s] chegou ao abrigo F1-B (vida 100)",
-    "roteiro morte: [27.2s] onda 2 anunciada — parando de lutar | [38.1s] Lia caiu na onda 2",
-    "roteiro térreo: [17.4s] ondas encerradas — painel liberado | [21.0s] painel acionado",
+    "roteiro morte: [27.6s] onda 2 anunciada — parando de lutar | [38.6s] Lia caiu na onda 2",
+    "roteiro térreo: [17.5s] ondas encerradas — painel liberado | [21.0s] painel acionado",
     "roteiro passarela: [2.6s] subiu a escada | [8.0s] desceu pela rampa | [13.5s] ondas encerradas — painel liberado | [14.4s] painel acionado"
   ],
-  "at": "2026-11-24T11:57:58.025Z"
+  "at": "2026-11-24T12:10:13.233Z"
 }
