@@ -47,7 +47,7 @@ export const texFloorTile = () => canvasTex("floor", 512, (g, s) => {
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     const v = 70 + r() * 22;
     const alt = (i + j) % 2 === 0;
-    g.fillStyle = alt ? `rgb(${v},${v + 12},${v + 16})` : `rgb(${v * 0.6},${v * 0.72},${v * 0.78})`;
+    g.fillStyle = alt ? `rgb(${v},${v + 12},${v + 16})` : `rgb(${v * 0.78},${v * 0.86},${v * 0.9})`;
     g.fillRect(i * ts + 2, j * ts + 2, ts - 4, ts - 4);
   }
   noise(g, s, 0.12, r);
@@ -66,10 +66,10 @@ export const texWallTile = () => canvasTex("wall", 512, (g, s) => {
   const n = 8, ts = s / n;
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     const lower = j > n * 0.55;
-    const v = lower ? 70 + r() * 15 : 150 + r() * 25;
+    const v = lower ? 68 + r() * 10 : 128 + r() * 12;
     g.fillStyle = lower ? `rgb(${v * 0.5},${v * 0.95},${v * 0.9})` : `rgb(${v * 0.92},${v * 0.96},${v})`;
     g.fillRect(i * ts + 1.5, j * ts + 1.5, ts - 3, ts - 3);
-    if (r() < 0.06) { g.fillStyle = "rgba(20,24,26,0.9)"; g.fillRect(i * ts + 1.5, j * ts + 1.5, ts - 3, ts - 3); }
+    if (r() < 0.025) { g.fillStyle = "rgba(40,46,48,0.85)"; g.fillRect(i * ts + 1.5, j * ts + 1.5, ts - 3, ts - 3); }
   }
   g.fillStyle = "rgba(255,170,60,0.25)"; g.fillRect(0, s * 0.55, s, 5);
   noise(g, s, 0.1, r);

@@ -3,9 +3,10 @@ import { startServer, launch, sleep, waitFor, Report, openGame, SHOTS } from "./
 
 async function snap(page, name) {
   const sp = await page.evaluate(() => window.__fh.game.timeScale);
-  await page.evaluate(() => window.__fh.setSpeed(0)); // congela a simulação; a cena continua desenhando
+  await page.evaluate(() => { window.__fh.setSpeed(0); document.getElementById("diag").style.visibility = "hidden"; }); // congela a simulação; a cena continua desenhando
   await sleep(900);
   await page.screenshot({ path: SHOTS + name });
+  await page.evaluate(() => { document.getElementById("diag").style.visibility = ""; });
   await page.evaluate((s) => window.__fh.setSpeed(s), sp);
 }
 
@@ -50,7 +51,8 @@ export async function run(url) {
   const { browser, ctx, errors } = await launch();
   let page = await ctx.newPage();
   const allErrors = errors;
-  const hook = (p) => { p.on("console", (m) => { if (m.type() === "error") allErrors.push(m.text()); }); p.on("pageerror", (e) => allErrors.push(String(e))); };
+  const hook = (p) => {
+    p.addInitScript(() => { window.__saves = () => ["fh.save.0", "fh.save.1"].map((k) => localStorage.getItem(k)).filter(Boolean).map((x) => JSON.parse(JSON.parse(x).body)); }); p.on("console", (m) => { if (m.type() === "error") allErrors.push(m.text()); }); p.on("pageerror", (e) => allErrors.push(String(e))); };
   hook(page);
   try {
     await openGame(page, url, "?debug=1", "media");
@@ -68,7 +70,7 @@ export async function run(url) {
     const loadMs = await page.evaluate(() => window.__fhLastLoadMs);
     R.note(`carregamento de F1: ${Math.round(loadMs)} ms (headless, SwiftShader)`);
     await waitFor(page, () => !document.getElementById("toast").classList.contains("hidden") || document.getElementById("toast").textContent.includes("salvo"), null, 5000, "toast").catch(() => {});
-    const save0 = await page.evaluate(() => { const r = [localStorage.getItem("fh.save.0"), localStorage.getItem("fh.save.1")].filter(Boolean).map((x) => JSON.parse(x)); return r.map((e) => e.data?.checkpoint?.point ?? e.checkpoint?.point ?? null); });
+    const save0 = await page.evaluate(() => window.__saves().map((d) => d.checkpoint.point));
     R.check("entrada do capítulo salva em F1-A", save0.includes("F1-A"), JSON.stringify(save0));
 
     // tutorial até o abrigo F1-B, com fotos
@@ -80,7 +82,7 @@ export async function run(url) {
     R.check("vestiário → armário → corredor agachado → bilheteria (baliza no giz abre o trinco) → guichê → F1-B", tut.ok && tut.done && !tut.error, tut.error);
     R.check("passou sob a persiana agachado", tut.data.crouchedUnderShutter === true);
     R.check("Riscadores da demonstração atraídos pelo chamado", tut.data.demoLured >= 1, String(tut.data.demoLured));
-    const saveB = await page.evaluate(() => [localStorage.getItem("fh.save.0"), localStorage.getItem("fh.save.1")].filter(Boolean).map((x) => JSON.parse(x)).map((e) => JSON.stringify(e).includes('"point":"F1-B"')).some(Boolean));
+    const saveB = await page.evaluate(() => window.__saves().some((d) => d.checkpoint.point === "F1-B"));
     R.check("abrigo F1-B salvo", saveB);
 
     // praça: morrer na onda 2
@@ -109,7 +111,7 @@ export async function run(url) {
     R.check("concluiu pelo térreo e exibiu o resultado de F1", res1.r.route === "térreo" && res1.table.includes("térreo"), res1.table.replace(/\n/g, " • "));
     await sleep(600);
     await page.screenshot({ path: SHOTS + "05-resultado-f1.png" });
-    const after = await page.evaluate(() => { const r = [localStorage.getItem("fh.save.0"), localStorage.getItem("fh.save.1")].filter(Boolean).join(""); return { f2p: r.includes('"F2P"'), unlocked: r.includes('"F2"') }; });
+    const after = await page.evaluate(() => { const d = window.__saves(); return { f2p: d.some((x) => x.checkpoint.phase === "F2P"), unlocked: d.some((x) => x.unlocked.includes("F2") && x.completed.includes("F1")) }; });
     R.check("fim de capítulo salvo (F2 desbloqueada)", after.f2p && after.unlocked);
     await page.click('#result button[data-act="next"]');
     await waitFor(page, () => window.__fh.state === "playing" && window.__fh.sim.level.id === "F2P", null, 20000, "prévia de F2");

@@ -135,7 +135,7 @@ export function buildEstilhaco(): CreatureRig {
 export function buildAgulha(): { root: THREE.Group; mag: THREE.Mesh; coils: THREE.Mesh[]; muzzle: THREE.Object3D; flash: THREE.Sprite; magMat: THREE.MeshStandardMaterial } {
   const root = new THREE.Group();
   const body = new THREE.MeshStandardMaterial({ color: 0x2e3438, roughness: 0.45, metalness: 0.6 });
-  const trim = new THREE.MeshStandardMaterial({ color: 0xa8865a, roughness: 0.5, metalness: 0.4 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x5e5446, roughness: 0.55, metalness: 0.55 });
   const glow = new THREE.MeshStandardMaterial({ color: 0x173238, emissive: 0x39d8ff, emissiveIntensity: 1.6, roughness: 0.2 });
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); root.add(m); return m;

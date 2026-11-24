@@ -1,0 +1,119 @@
+{
+  "name": "d03",
+  "ok": false,
+  "checks": [
+    {
+      "label": "menu inicial sem save: Continuar desabilitado",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "entrada do capítulo salva em F1-A",
+      "ok": false,
+      "detail": "[null]"
+    },
+    {
+      "label": "vestiário → armário → corredor agachado → bilheteria (baliza no giz abre o trinco) → guichê → F1-B",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "passou sob a persiana agachado",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "Riscadores da demonstração atraídos pelo chamado",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "label": "abrigo F1-B salvo",
+      "ok": false,
+      "detail": ""
+    },
+    {
+      "label": "Lia morre depois do aviso da onda 2",
+      "ok": true,
+      "detail": "Retorno em F1-B • Sobreviva às ondas e libere o painel da catraca"
+    },
+    {
+      "label": "tela de morte com “Tentar novamente” em foco",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "reabrir (térreo): menu oferece Continuar em F1-B",
+      "ok": true,
+      "detail": "Último registro: F1 • Última Chamada • F1-B • Normal"
+    },
+    {
+      "label": "reabrir (térreo): volta no abrigo F1-B com divisória fechada",
+      "ok": true,
+      "detail": "{\"x\":58.4,\"y\":0,\"z\":5}"
+    },
+    {
+      "label": "reabrir (térreo): ondas rearmadas (arena parada, nenhum inimigo vivo)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "reabrir (térreo): piso do abrigo (vida ≥ 60, reserva ≥ 24, baliza pronta)",
+      "ok": true,
+      "detail": "vida 100, 13/48"
+    },
+    {
+      "label": "concluiu pelo térreo e exibiu o resultado de F1",
+      "ok": true,
+      "detail": "Tempo\t0:41 • Rota até a catraca\ttérreo • Criaturas derrubadas\t7 • Precisão da Agulha\t85% • Quedas\t0 • Chamados da baliza\t0 • Dano recebido\t0"
+    },
+    {
+      "label": "fim de capítulo salvo (F2 desbloqueada)",
+      "ok": false,
+      "detail": ""
+    },
+    {
+      "label": "“Seguir para o mercado” abre a prévia temporária de F2",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "reabrir (passarela): menu oferece Continuar em F1-B",
+      "ok": true,
+      "detail": "Último registro: F1 • Última Chamada • F1-B • Normal"
+    },
+    {
+      "label": "reabrir (passarela): volta no abrigo F1-B com divisória fechada",
+      "ok": true,
+      "detail": "{\"x\":58.4,\"y\":0,\"z\":5}"
+    },
+    {
+      "label": "reabrir (passarela): ondas rearmadas (arena parada, nenhum inimigo vivo)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "reabrir (passarela): piso do abrigo (vida ≥ 60, reserva ≥ 24, baliza pronta)",
+      "ok": true,
+      "detail": "vida 100, 13/48"
+    },
+    {
+      "label": "concluiu pela passarela (escada, dardos, rampa) e exibiu o resultado",
+      "ok": true,
+      "detail": "Tempo\t0:34 • Rota até a catraca\tpassarela • Criaturas derrubadas\t7 • Precisão da Agulha\t100% • Quedas\t0 • Chamados da baliza\t0 • Dano recebido\t0"
+    },
+    {
+      "label": "sem erros no console",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "notes": [
+    "carregamento de F1: 103 ms (headless, SwiftShader)",
+    "roteiro tutorial: [1.1s] pegou Agulha e baliza | [5.6s] passou sob a persiana agachado: true | [8.2s] chamado emitido na marca de giz | [8.2s] trinco aberto; Riscadores da demonstração atraídos: 2 | [12.3s] Riscador solto derrubado | [15.4s] guichê limpo | [18.2s] chegou ao abrigo F1-B (vida 100)",
+    "roteiro morte: [27.1s] onda 2 anunciada — parando de lutar | [38.1s] Lia caiu na onda 2",
+    "roteiro térreo: [17.4s] ondas encerradas — painel liberado | [21.0s] painel acionado",
+    "roteiro passarela: [2.7s] subiu a escada | [8.0s] desceu pela rampa | [13.5s] ondas encerradas — painel liberado | [14.4s] painel acionado"
+  ],
+  "at": "2026-11-24T11:43:55.568Z"
+}
