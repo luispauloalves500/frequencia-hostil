@@ -10,11 +10,12 @@ import type { Creature } from "../core/creatures";
 import type { Box } from "../core/world";
 import { World } from "../core/world";
 import type { LevelDef } from "../levels/types";
-import { BEACON, ESTILHACO, RISCADOR } from "../config";
+import { BEACON, ESTILHACO, FOLE, RISCADOR, VEU } from "../config";
 import { dirFromYawPitch } from "../core/math";
 import * as TX from "./textures";
 import { LightPool } from "./lightPool";
-import { buildAgulha, buildBeaconDevice, buildEstilhaco, buildFerry, buildPickup, buildRiscador, fishDoor, rimMat, signMesh, type CreatureRig } from "./models";
+import { buildAgulha, buildBeaconDevice, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildVeu, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
+import { buildExtraDecor } from "./decor";
 
 export type Quality = "baixa" | "media" | "alta";
 
@@ -22,12 +23,14 @@ interface MatDef { mat: THREE.Material; size: number }
 
 function makeMaterials(): Record<string, MatDef> {
   const std = (map: THREE.Texture | null, o: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ map: map ?? undefined, roughness: 0.7, metalness: 0.05, ...o });
+  const wet = (seed: number, k: number) => { const t = TX.texWetRough(seed, k); t.colorSpace = THREE.NoColorSpace; return t; };
   const grate = std(TX.texGrate(), { transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, metalness: 0.6, roughness: 0.5 });
   return {
-    azulejo: { mat: std(TX.texFloorTile(), { roughness: 0.28, metalness: 0.12, envMapIntensity: 0.6 }), size: 2 },
+    // pisos molhados: mapa de rugosidade com poças e manchas (reflexos irregulares)
+    azulejo: { mat: std(TX.texFloorTile(), { roughness: 0.55, roughnessMap: wet(5, 0.55), metalness: 0.12, envMapIntensity: 0.9 }), size: 2 },
     "azulejo-parede": { mat: std(TX.texWallTile(), { roughness: 0.45, envMapIntensity: 0.4 }), size: 4 },
     metal: { mat: std(TX.texMetal(), { metalness: 0.55, roughness: 0.45 }), size: 1 },
-    concreto: { mat: std(TX.texConcrete(), { roughness: 0.85 }), size: 2 },
+    concreto: { mat: std(TX.texConcrete(), { roughness: 1, roughnessMap: wet(9, 0.4), envMapIntensity: 0.7 }), size: 2 },
     madeira: { mat: std(TX.texWood(), { roughness: 0.75 }), size: 1.5 },
     grade: { mat: grate, size: 1 },
     vidro: { mat: new THREE.MeshStandardMaterial({ color: 0x6a8ca8, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.9, depthWrite: false }), size: 1 },
@@ -37,6 +40,11 @@ function makeMaterials(): Record<string, MatDef> {
     armario: { mat: std(TX.texLocker(), { metalness: 0.4, roughness: 0.5 }), size: 2 },
     balcao: { mat: std(TX.texCounter(), { roughness: 0.6 }), size: 1.5 },
     teto: { mat: std(TX.texCeiling(), { roughness: 0.9 }), size: 2 },
+    gelo: { mat: std(TX.texIce(), { roughness: 0.22, roughnessMap: wet(13, 0.7), metalness: 0.05, envMapIntensity: 1.1 }), size: 3 },
+    "gelo-parede": { mat: std(TX.texIceWall(), { roughness: 0.35, envMapIntensity: 0.8 }), size: 3 },
+    toldo: { mat: std(TX.texAwning(), { roughness: 0.9 }), size: 2 },
+    bancaAzul: { mat: std(TX.texBluePaint(), { roughness: 0.6 }), size: 2 },
+    comporta: { mat: std(TX.texGate(), { metalness: 0.55, roughness: 0.55 }), size: 3 },
   };
 }
 
@@ -143,6 +151,8 @@ class ParticlePool {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+const FOLE_MAG = 8;
+const WHITE = new THREE.Color(0xffffff);
 
 interface CreatureView { rig: CreatureRig; c: Creature; shadow: THREE.Mesh; dying: number }
 
@@ -173,11 +183,21 @@ export class Renderer {
   rain: THREE.LineSegments | null = null;
   rainTime = { value: 0 };
   seaTime = { value: 0 };
-  rainRects: [number, number, number, number][] = [];
+  rainRects: [number, number, number, number, number][] = [];
+  private rainPick: (u: number) => [number, number, number, number, number] = () => this.rainRects[0];
   sea: THREE.Mesh | null = null;
   ferry: THREE.Group | null = null;
   decorById = new Map<string, THREE.Object3D>();
-  vm = buildAgulha();
+  drips: THREE.Vector3[] = [];
+  /** névoas do Véu: sprites de fumaça por nuvem (um material por nuvem, programa compartilhado) */
+  cloudViews = new Map<number, { g: THREE.Group; mat: THREE.SpriteMaterial; sprites: THREE.Sprite[]; age: number; gone: number; r: number }>();
+  private liveClouds = new Set<number>();
+  vmAgulha = buildAgulha();
+  vmFole = buildFoleModel();
+  vm: WeaponView = this.vmAgulha;
+  /** sopro: o leque recua e o fole comprime */
+  soproAnim = 0;
+  private vmWeapon: string | null = null;
   vmBeacon = buildBeaconDevice();
   vmLight = new THREE.PointLight(0xffffff, 2, 3);
   muzzleLight = new THREE.PointLight(0x7ff6ff, 0, 6, 2);
@@ -233,11 +253,14 @@ export class Renderer {
     }
     // viewmodel
     this.vmScene.add(this.vmCamera);
-    this.vmCamera.add(this.vm.root);
-    this.vm.root.position.set(0.17, -0.17, -0.34);
+    this.vmCamera.add(this.vmAgulha.root, this.vmFole.root);
+    this.vmAgulha.root.position.set(0.17, -0.17, -0.34);
+    this.vmFole.root.position.set(0.17, -0.19, -0.34); this.vmFole.root.visible = false;
+    for (const v of [this.vmAgulha, this.vmFole]) { v.mag.userData.p0 = v.mag.position.clone(); if (v.hand) v.hand.userData.p0 = v.hand.position.clone(); }
     this.vmCamera.add(this.vmBeacon.root);
-    this.vmBeacon.root.position.set(-0.27, -0.24, -0.42);
-    this.vmBeacon.root.scale.setScalar(0.7);
+    // baliza menor na mão esquerda: não cobre a mira nem a metade esquerda da tela
+    this.vmBeacon.root.position.set(-0.25, -0.22, -0.42);
+    this.vmBeacon.root.scale.setScalar(0.5);
     this.vmScene.add(new THREE.HemisphereLight(0x8fb0d0, 0x202020, 1.4));
     const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(1, 2, 1); this.vmScene.add(key);
     this.vmCamera.add(this.vmLight); this.vmLight.position.set(0.3, 0.3, 0);
@@ -289,7 +312,8 @@ export class Renderer {
     for (const s of this.projectiles.values()) s.removeFromParent(); this.projectiles.clear();
     for (const t of this.tracers) { t.line.removeFromParent(); this.tracerFree.push(t.line); } this.tracers = [];
     this.sparks.clear(); this.shards.clear();
-    this.rain = null; this.sea = null; this.ferry = null;
+    this.rain = null; this.sea = null; this.ferry = null; this.drips = [];
+    for (const cv of this.cloudViews.values()) cv.g.removeFromParent(); this.cloudViews.clear();
   }
 
   /** Monta a cena estática da fase. */
@@ -359,7 +383,10 @@ export class Renderer {
     }
     if (env.sea) {
       const sg = new THREE.PlaneGeometry(320, 130, 64, 26);
-      sg.rotateX(-Math.PI / 2); sg.translate(50, -1.2, -76);
+      const sr = env.seaRect;
+      if (sr) { sg.dispose(); }
+      const sg2 = sr ? new THREE.PlaneGeometry(sr.w, sr.d, 64, 26) : sg;
+      sg2.rotateX(-Math.PI / 2); sg2.translate(sr ? sr.x : 50, -1.2, sr ? sr.z : -76);
       const seaMat = new THREE.MeshStandardMaterial({ color: 0x0b2230, roughness: 0.18, metalness: 0.6, envMapIntensity: 1.2 });
       // ondas no shader (mesma fórmula de antes, normal analítica): nada de recalcular malha na CPU
       seaMat.onBeforeCompile = (sh) => {
@@ -373,9 +400,11 @@ export class Renderer {
   #endif`)
           .replace("#include <begin_vertex>", "#include <begin_vertex>\n  transformed.y += sin(wx) * 0.18 + cos(wz) * 0.14;");
       };
-      this.sea = new THREE.Mesh(sg, seaMat);
+      this.sea = new THREE.Mesh(sg2, seaMat);
       this.sea.frustumCulled = false;
       this.levelRoot.add(this.sea);
+    }
+    if (env.sea && (env.quay ?? !env.seaRect)) {
       const quay = new THREE.Mesh(new THREE.BoxGeometry(110, 1, 5), this.mats.concreto.mat); quay.position.set(50, -0.7, -11.7); this.levelRoot.add(quay);
       for (let i = 0; i < 10; i++) {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.8, 8), this.mats.metal.mat); post.position.set(4 + i * 10, -0.2, -13.4); this.levelRoot.add(post);
@@ -388,13 +417,16 @@ export class Renderer {
     }
     if (env.rain) {
       // chuva animada no shader de vértice: nenhuma atualização de buffer por quadro
-      this.rainRects = [[62, -9, 88, 9], [-10, -60, 110, -9.4]];
+      this.rainRects = env.rainRects ?? [[62, -9, 88, 9, 0], [-10, -60, 110, -9.4, -1.2]];
+      const areaW = this.rainRects.map((r) => Math.max(1, (r[2] - r[0]) * (r[3] - r[1])) ** 0.5);
+      const areaSum = areaW.reduce((a, b) => a + b, 0);
+      this.rainPick = (u: number) => { let acc = 0; for (let i = 0; i < areaW.length; i++) { acc += areaW[i] / areaSum; if (u <= acc) return this.rainRects[i]; } return this.rainRects[areaW.length - 1]; };
       const N = this.quality === "baixa" ? 700 : 1800;
       const pos = new Float32Array(N * 6), drop = new Float32Array(N * 4);
       for (let i = 0; i < N; i++) {
-        const r = this.rainRects[Math.random() < 0.45 ? 0 : 1];
+        const r = env.rainRects ? this.rainPick(Math.random()) : this.rainRects[Math.random() < 0.45 ? 0 : 1];
         const x = r[0] + Math.random() * (r[2] - r[0]), z = r[1] + Math.random() * (r[3] - r[1]);
-        const floorY = z < -9.4 ? -1.2 : 0;
+        const floorY = r[4];
         pos.set([x, 0, z, x + 0.03, 0.45, z + 0.02], i * 6);
         const y0 = Math.random() * 20;
         drop.set([y0, floorY, y0, floorY], i * 4);
@@ -462,21 +494,23 @@ export class Renderer {
   /** Compila os shaders de tudo o que pode aparecer na fase durante o carregamento (sem engasgos na primeira aparição). */
   private warmup() {
     const tmp = new THREE.Group();
-    const r = buildRiscador(), e = buildEstilhaco();
-    tmp.add(r.root, e.root);
+    const r = buildRiscador(), e = buildEstilhaco(), vu = buildVeu();
+    tmp.add(r.root, e.root, vu.root);
+    tmp.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.texSmoke(), transparent: true, opacity: 0.5, depthWrite: false })));
     if (e.beam) { e.beam.visible = true; tmp.add(e.beam); }
     for (const m of [...r.rims, ...e.rims]) m.visible = true;
     r.mark.visible = true; e.mark.visible = true;
     tmp.add(new THREE.Mesh(this.tracerGeo, new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
     tmp.add(new THREE.Mesh(new THREE.CircleGeometry(0.5, 8), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false })));
     tmp.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.texGlow(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
-    tmp.add(buildPickup("dardos"), buildPickup("curativo"));
+    tmp.add(buildPickup("dardos"), buildPickup("curativo"), buildPickup("fole"));
     const vis: THREE.Object3D[] = [];
+    for (const id of ["seta-comporta"]) { const a = this.decorById.get(id); if (a && !a.visible) { a.visible = true; vis.push(a); } }
     for (const o of [this.beaconWorld.root, this.rangeRing, this.aimRing, ...this.pulseRings]) if (!o.visible) { o.visible = true; vis.push(o); }
     this.scene.add(tmp);
     try {
       this.renderer.compile(this.scene, this.camera);
-      const vv = [this.vm.root, this.vmBeacon.root, this.vm.flash].filter((o) => !o.visible);
+      const vv = [this.vmAgulha.root, this.vmFole.root, this.vmBeacon.root, this.vmAgulha.flash, this.vmFole.flash].filter((o) => !o.visible);
       vv.forEach((o) => (o.visible = true));
       this.renderer.compile(this.vmScene, this.vmCamera);
       vv.forEach((o) => (o.visible = false));
@@ -602,8 +636,13 @@ export class Renderer {
         g.userData.items = [gun, bea]; g.userData.glow = glow; g.userData.vlights = [glow];
         break;
       }
-      case "drip": { g.userData.drip = true; break; }
+      case "drip": { this.drips.push(new THREE.Vector3(d.pos.x, d.pos.y, d.pos.z)); break; }
       case "ferry": { const f = buildFerry(); g.add(f); this.ferry = g; break; }
+      default: {
+        const vl: THREE.PointLight[] = [];
+        if (buildExtraDecor(g, d, { lights: vl })) { if (vl.length) g.userData.vlights = vl; }
+        break;
+      }
       case "dock": {
         for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 4, 8), this.mats.madeira.mat); p.position.set(-14 + i * 6, -1, -6); g.add(p); }
         const plank = new THREE.Mesh(new THREE.BoxGeometry(36, 0.3, 3), this.mats.madeira.mat); plank.position.set(1, 0.9, -6); g.add(plank);
@@ -614,13 +653,16 @@ export class Renderer {
     this.levelRoot.add(g);
     for (const l of (g.userData.vlights ?? []) as THREE.PointLight[]) this.lightPool.add(l);
     if (d.id) this.decorById.set(d.id, g);
+    if (d.id === "seta-comporta") g.visible = false; // acende quando a comporta abre
   }
 
   /** Reage aos eventos da simulação (efeitos visuais). */
   onEvents(evs: SimEvent[], sim: Sim) {
     for (const e of evs) {
       switch (e.type) {
-        case "shot": case "mark": {
+        case "shot": if (e.weapon === "fole") { this.foleShot(e); break; } // fallthrough para a Agulha
+        // eslint-disable-next-line no-fallthrough
+        case "mark": {
           const from = this.vm.muzzle.getWorldPosition(new THREE.Vector3());
           // muzzle no espaço do viewmodel → aproxima no mundo a partir da câmera
           const cam = this.camera;
@@ -628,8 +670,8 @@ export class Renderer {
           from.copy(cam.position).add(off);
           const to = new THREE.Vector3(e.to.x, e.to.y, e.to.z);
           this.addTracer(from, to, e.type === "mark" ? 0xb0ffd0 : 0x7ff6ff, e.type === "mark" ? 0.03 : 0.018);
-          this.recoil = 1; this.vm.flash.visible = true; this.vm.flash.material.rotation = Math.random() * 6;
-          this.muzzleLight.position.copy(from); this.muzzleLight.intensity = 6;
+          this.recoil = 1; this.vmAgulha.flash.visible = true; this.vmAgulha.flash.material.rotation = Math.random() * 6;
+          this.muzzleLight.color.set(0x7ff6ff); this.muzzleLight.position.copy(from); this.muzzleLight.intensity = 6;
           if (e.hit) {
             this.shards.emit(to, e.killed ? 4 : 9, 0xe8e0d0, 3.5, 0.6, 0.05, 9);
             this.sparks.emit(to, 6, e.marked ? 0x9fffd0 : 0x7ff6ff, 4, 0.25, 0.12, 2);
@@ -657,15 +699,15 @@ export class Renderer {
         case "beaconThrow": this.throwAnim = 0.4; break;
         case "healStart": this.healAnim = 0.6; break;
         case "doorOpen": {
-          const d = this.decorById.get(e.id);
-          if (d) d.userData.opening = true;
+          for (const k of [e.id, e.id + "-quadro"]) { const d = this.decorById.get(k); if (d) d.userData.opening = true; }
+          if (e.id === "comporta") this.shake = Math.max(this.shake, 0.35);
           break;
         }
         case "doorVibrate": {
-          const key = e.door === "superior" ? "porta-superior" : e.door === "leste" ? "porta-leste" : e.door === "alcapao" ? "alcapao" : "porta-oficina";
+          const key = e.decor ?? (e.door === "superior" ? "porta-superior" : e.door === "leste" ? "porta-leste" : e.door === "alcapao" ? "alcapao" : "porta-oficina");
           const dyn = this.dynamicBoxes.get(key);
           if (dyn) dyn.vib = 1.2;
-          const d = this.decorById.get(key); if (d) d.userData.vib = 1.2;
+          for (const k of [key, key + "-quadro"]) { const d = this.decorById.get(k); if (d) d.userData.vib = 1.2; }
           this.sparks.emit(new THREE.Vector3(e.pos.x, e.pos.y, e.pos.z), 10, 0xffa050, 2, 0.8, 0.06, 3);
           break;
         }
@@ -684,14 +726,114 @@ export class Renderer {
           if (p) { (p.userData.screen.material as THREE.MeshBasicMaterial).map = TX.texSign("PRESSIONE", "#ffffff", 512, 256); (p.userData.screen.material as THREE.MeshBasicMaterial).needsUpdate = true; p.userData.ready = true; }
           break;
         }
-        case "equip": { const l = this.decorById.get("armario-lia"); if (l) { for (const it of l.userData.items) it.visible = false; l.userData.glow.intensity = 0.5; } break; }
-        case "pickup": { const g = this.pickups.get(e.id); if (g) { this.sparks.emit(g.position.clone().add(new THREE.Vector3(0, 0.3, 0)), 14, e.kind === "dardos" ? 0x7ff6ff : 0xffb050, 2, 0.5, 0.1, -1); } break; }
+        case "equip": if (e.what === "fole") { const b = this.decorById.get("bancada-fole"); if (b) { for (const it of b.userData.items) it.visible = false; b.userData.glow.intensity = 0.3; } break; } else { const l = this.decorById.get("armario-lia"); if (l) { for (const it of l.userData.items) it.visible = false; l.userData.glow.intensity = 0.5; } break; }
+        case "sopro": {
+          this.soproAnim = 0.5;
+          const dir = this.tmpB.set(e.dir.x, 0.05, e.dir.z);
+          for (let i = 1; i <= 6; i++) {
+            this.tmpA.set(e.from.x + e.dir.x * i * 0.9, e.from.y - 0.25, e.from.z + e.dir.z * i * 0.9);
+            this.sparks.emit(this.tmpA, 3, 0xcfe8e4, 2.5, 0.35, 0.16, 0, dir);
+          }
+          this.shake = Math.max(this.shake, 0.12);
+          break;
+        }
+        case "cloud": { this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y, e.pos.z), 16, 0x9fe8d8, 2, 0.6, 0.2, -0.5); break; }
+        case "veuSwell": { this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y, e.pos.z), 10, 0x7ff0d8, 1.2, 0.8, 0.12, -0.3); break; }
+        case "valve": {
+          const d = this.decorById.get(e.id);
+          if (d) { d.userData.turning = 1.1; (d.userData.led.material as THREE.MeshBasicMaterial).color.set(0x40ff70); }
+          this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y, e.pos.z), 12, 0xd0e8ff, 1.5, 0.5, 0.08, 4);
+          break;
+        }
+        case "gateStart": { const d = this.decorById.get("segmentos"); if (d) d.userData.active = true; const l = this.lights.find((x) => x.id === "luz-comporta"); if (l) l.light.color.set(0xffa030); break; }
+        case "gateSegment": {
+          const d = this.decorById.get("segmentos");
+          if (d) { const seg = d.userData.segs[e.n - 1] as THREE.Mesh; if (seg) (seg.material as THREE.MeshBasicMaterial).color.set(0x50ff80); d.userData.lit = e.n; }
+          this.shake = Math.max(this.shake, 0.08);
+          break;
+        }
+        case "gateOpen": {
+          const d = this.decorById.get("segmentos"); if (d) d.userData.active = false;
+          const l = this.lights.find((x) => x.id === "luz-comporta"); if (l) { l.light.color.set(0x60ff90); l.target = 1; }
+          const a = this.decorById.get("seta-comporta"); if (a) a.visible = true;
+          break;
+        }
+        case "pickup": { const g = this.pickups.get(e.id); if (g) { this.sparks.emit(g.position.clone().add(new THREE.Vector3(0, 0.3, 0)), 14, e.kind === "dardos" ? 0x7ff6ff : e.kind === "fole" ? 0xffc070 : 0xffb050, 2, 0.5, 0.1, -1); } break; }
         case "beaconCall": {
           const p = new THREE.Vector3(e.pos.x, e.pos.y + 0.2, e.pos.z);
           this.sparks.emit(p, 20, 0xbff8ff, 3, 0.6, 0.12, 0);
           break;
         }
       }
+    }
+  }
+
+  /** Fole: seis traçantes curtos em leque, cada fragmento com seu impacto. */
+  private foleShot(e: any) {
+    const cam = this.camera;
+    const from = this.tmpA.set(0.17, -0.17, -0.6).applyQuaternion(cam.quaternion).add(cam.position);
+    for (const pl of e.pellets as { to: { x: number; y: number; z: number }; hit: string | null; normal: { x: number; y: number; z: number } | null }[]) {
+      const to = this.tmpB.set(pl.to.x, pl.to.y, pl.to.z);
+      this.addTracer(from, to, 0xffc070, 0.012);
+      if (pl.hit) this.sparks.emit(to, 3, 0xffb060, 3, 0.25, 0.1, 2);
+      else if (pl.normal) { this.tmpV.set(pl.normal.x, pl.normal.y, pl.normal.z); this.sparks.emit(to, 3, 0xffd8a0, 2.5, 0.3, 0.07, 6, this.tmpV); this.shards.emit(to, 1, 0x777777, 2, 0.5, 0.03, 9, this.tmpV); }
+    }
+    for (const h of e.hits as { id: string; killed: boolean }[]) {
+      this.hitFlashes.push({ c: h.id, t: 0.1 });
+      const pl = (e.pellets as any[]).find((p) => p.hit === h.id);
+      if (pl) this.shards.emit(this.tmpB.set(pl.to.x, pl.to.y, pl.to.z), h.killed ? 4 : 10, 0xe8e0d0, 3.5, 0.6, 0.05, 9);
+    }
+    this.recoil = 1; this.vmFole.flash.visible = true; this.vmFole.flash.material.rotation = Math.random() * 6;
+    this.muzzleLight.color.set(0xffb060); this.muzzleLight.position.copy(from); this.muzzleLight.intensity = 9;
+    this.shake = Math.max(this.shake, 0.18);
+  }
+
+  /** Névoa do Véu: ~14 sprites de fumaça que giram devagar; o sopro os empurra para fora. */
+  private syncClouds(sim: Sim, dt: number) {
+    const live = this.liveClouds; live.clear();
+    for (const cl of sim.clouds) {
+      live.add(cl.id);
+      let v = this.cloudViews.get(cl.id);
+      if (!v) {
+        const mat = new THREE.SpriteMaterial({ map: TX.texSmoke(), color: 0x9fb8b0, transparent: true, opacity: 0, depthWrite: false });
+        const g = new THREE.Group(); g.position.set(cl.pos.x, 0, cl.pos.z);
+        const sprites: THREE.Sprite[] = [];
+        const n = this.quality === "baixa" ? 9 : 14;
+        for (let i = 0; i < n; i++) {
+          const sp = new THREE.Sprite(mat);
+          const a = (i / n) * Math.PI * 2 + Math.random() * 0.4, r = cl.radius * (0.2 + Math.random() * 0.7);
+          sp.position.set(Math.cos(a) * r, cl.pos.y - 1.6 + Math.random() * 2.6, Math.sin(a) * r);
+          sp.userData.p0 = sp.position.clone(); sp.userData.ph = Math.random() * 6;
+          sp.scale.setScalar(2.4 + Math.random() * 1.8);
+          sp.renderOrder = 3;
+          g.add(sp); sprites.push(sp);
+        }
+        this.scene.add(g);
+        v = { g, mat, sprites, age: 0, gone: 0, r: cl.radius };
+        this.cloudViews.set(cl.id, v);
+      }
+      v.age += dt;
+      const clear = cl.clearT > 0 ? Math.min(1, cl.clearT / FOLE.clearTime * 1.4) : 0; // 1 logo após o sopro
+      const lifeK = Math.min(1, v.age / 0.6) * Math.min(1, Math.max(0, (cl.life - cl.age) / 0.8));
+      v.mat.opacity = 0.55 * lifeK * (1 - clear * 0.85);
+      this.updateCloudSprites(v, clear, dt);
+    }
+    for (const [id, v] of this.cloudViews) {
+      if (live.has(id)) continue;
+      v.gone += dt;
+      v.mat.opacity = Math.max(0, v.mat.opacity - dt * 1.2);
+      this.updateCloudSprites(v, Math.min(1, v.gone * 2), dt);
+      if (v.mat.opacity <= 0) { v.g.removeFromParent(); v.mat.dispose(); this.cloudViews.delete(id); }
+    }
+  }
+  private updateCloudSprites(v: { sprites: THREE.Sprite[]; age: number }, push: number, dt: number) {
+    const t = this.time;
+    for (const sp of v.sprites) {
+      const p0 = sp.userData.p0 as THREE.Vector3, ph = sp.userData.ph as number;
+      const k = 1 + push * 1.6;
+      const a = t * 0.15 + ph;
+      sp.position.set(p0.x * k + Math.sin(a) * 0.4, p0.y + Math.sin(t * 0.5 + ph) * 0.15, p0.z * k + Math.cos(a) * 0.4);
+      sp.material.rotation += dt * 0.02;
     }
   }
 
@@ -752,6 +894,17 @@ export class Renderer {
       if (id === "painel" && g.userData.marker) { g.userData.marker.rotation.y += dt * 2; g.userData.marker.position.y = 0.9 + Math.sin(t * 3) * 0.06; }
       if (g.userData.pulse) g.scale.setScalar(1 + Math.sin(t * 4) * 0.08);
       if (id === "luz-portao" && g.userData.arrow.visible) g.userData.arrow.position.x = Math.sin(t * 5) * 0.08;
+      if (g.userData.lid) { // alçapões/respiros: abrem para baixo quando algo entra
+        g.userData.vib = Math.max(0, (g.userData.vib ?? 0) - dt);
+        if (g.userData.opening) g.userData.open = Math.min(1, g.userData.open + dt * 1.6);
+        g.userData.lid.rotation.z = -g.userData.open * 1.7 + (g.userData.vib > 0 ? Math.sin(t * 70) * 0.05 : 0);
+      }
+      if (g.userData.turning > 0) { g.userData.turning -= dt; g.userData.wheel.rotation.z += dt * 7 * Math.min(1, g.userData.turning * 2); }
+      if (g.userData.swingBody) { g.userData.swingBody.rotation.z = Math.sin(t * 0.8) * 0.05; g.userData.swingBody.rotation.x = Math.cos(t * 0.6) * 0.04; g.userData.swingBody.position.y = Math.sin(t * 0.9) * 0.05; }
+      if (g.userData.active && g.userData.segs) { // próximo segmento pisca enquanto a comporta abre
+        const nx = g.userData.segs[g.userData.lit ?? 0] as THREE.Mesh | undefined;
+        if (nx) (nx.material as THREE.MeshBasicMaterial).color.set(Math.sin(t * 14) > 0 ? 0xffa030 : 0x401010);
+      }
     }
     if (this.ferry) { this.ferry.position.y = Math.sin(t * 0.6) * 0.15 - 1.2; this.ferry.rotation.z = Math.sin(t * 0.45) * 0.008; }
 
@@ -770,8 +923,8 @@ export class Renderer {
       seen.add(c.id);
       let v = this.creatures.get(c.id);
       if (!v) {
-        const rig = c.type === "riscador" ? buildRiscador() : buildEstilhaco();
-        const shadow = new THREE.Mesh(new THREE.CircleGeometry(c.type === "riscador" ? 0.6 : 0.5, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false }));
+        const rig = c.type === "riscador" ? buildRiscador() : c.type === "veu" ? buildVeu() : buildEstilhaco();
+        const shadow = new THREE.Mesh(new THREE.CircleGeometry(c.type === "riscador" ? 0.6 : 0.5, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: c.type === "veu" ? 0.25 : 0.45, depthWrite: false }));
         shadow.rotation.x = -Math.PI / 2;
         this.dynRoot.add(rig.root, shadow);
         if (rig.beam) this.scene.add(rig.beam);
@@ -781,7 +934,7 @@ export class Renderer {
       this.animateCreature(v, sim, dt);
     }
     for (const [id, v] of this.creatures) {
-      if (!seen.has(id)) { v.rig.root.removeFromParent(); v.shadow.removeFromParent(); v.rig.beam?.removeFromParent(); this.creatures.delete(id); }
+      if (!seen.has(id)) { v.rig.root.removeFromParent(); v.shadow.removeFromParent(); v.rig.beam?.removeFromParent(); for (const pc of v.rig.pieces) pc.removeFromParent(); this.creatures.delete(id); }
     }
 
     // projéteis
@@ -845,6 +998,9 @@ export class Renderer {
       }
     }
 
+    this.syncClouds(sim, dt);
+    // goteiras
+    for (const dp of this.drips) if (Math.random() < dt * 1.5) this.sparks.emit(dp, 1, 0x9fc0d8, 0.05, Math.sqrt((2 * Math.max(0.5, dp.y)) / 9.8) + 0.1, 0.06, 9.8);
     // traçantes e partículas
     for (const tr of this.tracers) { tr.life -= dt; (tr.line.material as THREE.MeshBasicMaterial).opacity = Math.max(0, tr.life / 0.09); }
     for (let i = this.tracers.length - 1; i >= 0; i--) { const tr = this.tracers[i]; if (tr.life <= 0) { tr.line.removeFromParent(); this.tracerFree.push(tr.line); this.tracers.splice(i, 1); } }
@@ -856,9 +1012,10 @@ export class Renderer {
       const n = (this.rain.geometry.attributes.position.count / 2) * dt * (16 / 19) * 0.08;
       let k = Math.floor(n) + (Math.random() < n % 1 ? 1 : 0);
       while (k-- > 0) {
-        const r = this.rainRects[Math.random() < 0.45 ? 0 : 1];
+        const r = this.level?.env.rainRects ? this.rainPick(Math.random()) : this.rainRects[Math.random() < 0.45 ? 0 : 1];
         const z = r[1] + Math.random() * (r[3] - r[1]);
-        this.tmpV.set(r[0] + Math.random() * (r[2] - r[0]), 0.02, z);
+        if (r[4] < 0) continue; // respingos só onde há piso visível
+        this.tmpV.set(r[0] + Math.random() * (r[2] - r[0]), r[4] + 0.02, z);
         this.sparks.emit(this.tmpV, 1, 0x6080a0, 0.6, 0.2, 0.05, 3);
       }
     }
@@ -873,20 +1030,36 @@ export class Renderer {
     rig.root.position.set(c.pos.x, c.pos.y, c.pos.z);
     rig.root.rotation.y = c.yaw;
     v.shadow.position.set(c.pos.x, (Number.isNaN(sim.nav.floorAt(c.pos.x, c.pos.z)) ? c.pos.y : sim.nav.floorAt(c.pos.x, c.pos.z)) + 0.02, c.pos.z);
-    let flash = false;
-    for (const h of this.hitFlashes) if (h.c === c.id) { flash = true; break; }
-    for (const m of rig.mats) m.emissive.setRGB(flash ? 0.9 : 0, flash ? 0.95 : 0, flash ? 1 : 0);
+    let flash = 0;
+    for (const h of this.hitFlashes) if (h.c === c.id) { flash = Math.max(flash, h.t / 0.1); }
+    // veias pulsando; um acerto acende o cristal inteiro por um instante
+    const prepGlow = c.state === "windup" || c.state === "swell" || (c.state === "aim" && c.stateT >= 0) ? 1 : 0;
+    const pulse = 0.85 + Math.sin(t * 2.2 + c.pos.x) * 0.25 + prepGlow * (0.8 + Math.sin(t * 25) * 0.3);
+    for (const m of rig.mats) {
+      m.emissive.copy(rig.veinColor).lerp(WHITE, flash * 0.85);
+      m.emissiveIntensity = pulse + flash * 3.5;
+    }
     for (let i = this.hitFlashes.length - 1; i >= 0; i--) if ((this.hitFlashes[i].t -= dt / Math.max(1, this.creatures.size)) <= 0) this.hitFlashes.splice(i, 1);
     rig.mark.visible = c.markT > 0 && c.alive;
     if (rig.mark.visible) rig.mark.rotation.y += dt * 3;
     if (!c.alive) {
+      // morte: o cristal se estilhaça, as peças voam, giram, quicam e somem
+      if (v.dying === 0) this.shatter(v, sim);
       v.dying += dt;
-      const k = Math.min(1, v.dying / 0.6);
-      rig.body.rotation.z = k * 1.3; rig.body.position.y = (c.type === "riscador" ? 0.62 : 1.15) * (1 - k * 0.8);
-      rig.root.scale.setScalar(Math.max(0.01, 1 - Math.max(0, v.dying - 1.2) * 0.8));
-      for (const r of rig.rims) (r.material as THREE.MeshBasicMaterial).opacity = 0.1;
+      const fade = Math.max(0, 1 - Math.max(0, v.dying - 1.1) / 0.9);
+      for (const pc of rig.pieces) {
+        const u = pc.userData;
+        if (!u.vel) continue;
+        u.vel.y -= 9.8 * dt;
+        pc.position.addScaledVector(u.vel, dt);
+        if (pc.position.y < u.floor + 0.04) { pc.position.y = u.floor + 0.04; u.vel.y *= -0.3; u.vel.x *= 0.6; u.vel.z *= 0.6; u.spin.multiplyScalar(0.6); }
+        pc.rotation.x += u.spin.x * dt; pc.rotation.y += u.spin.y * dt; pc.rotation.z += u.spin.z * dt;
+        pc.scale.copy(u.s0).multiplyScalar(Math.max(0.001, fade));
+      }
+      for (const m of rig.mats) m.emissiveIntensity = Math.max(0, 2.5 - v.dying * 2);
       if (rig.beam) rig.beam.visible = false;
-      v.shadow.visible = v.dying < 2;
+      v.shadow.visible = false;
+      rig.mark.visible = false;
       return;
     }
     rig.root.scale.setScalar(c.state === "emerging" ? Math.min(1, 0.3 + c.stateT) : 1);
@@ -899,6 +1072,8 @@ export class Renderer {
       r.scale.set(1 + vib, 1 + (prep ? Math.abs(vib) * 3 : 0), 1);
       m.color.set(c.type === "riscador" ? (prep ? 0xffffff : 0x6ff0ff) : (prep ? 0xffe0a0 : 0xffb070));
     }
+    const fl = c.flinch.t > 0 ? c.flinch.t / 0.32 : 0;
+    if (c.type === "veu") { this.animateVeu(v, fl); return; }
     if (c.type === "riscador") {
       const gait = c.anim * 2.2;
       rig.legs.forEach((l, i) => { l.rotation.x = Math.sin(gait + (i % 3 === 0 ? 0 : Math.PI)) * 0.5; });
@@ -911,11 +1086,18 @@ export class Renderer {
       else if (c.state === "skid") { by = 0.5; rig.body.rotation.x = 0.15; }
       else rig.body.rotation.x = 0;
       rig.body.scale.set(1, sy, sz); rig.body.position.y = by + Math.sin(c.anim * 4) * 0.02;
+      // reação ao impacto: tranco para trás, cabeça joga quando o tiro é alto
+      rig.body.rotation.z = c.flinch.side * fl * 0.35;
+      rig.body.position.z = fl * 0.12;
+      if (rig.head) rig.head.rotation.x = c.flinch.h > 0.55 ? -fl * 0.7 : fl * 0.2;
     } else {
       const open = c.state === "aim" && c.stateT >= 0 ? Math.min(1, c.stateT / 0.3) : 0;
       rig.crown.forEach((cr, i) => { cr.rotation.x = 0.1 + open * 0.9 + Math.sin(t * 40 + i) * open * 0.04; });
       rig.legs.forEach((l, i) => { l.rotation.x = (i === 2 ? 0.3 : 0) + Math.sin(c.anim * 2 + i * 2) * 0.35; });
       rig.body.position.y = 1.15 + Math.sin(t * 2) * 0.03;
+      rig.body.rotation.x = -fl * 0.3 * (c.flinch.h > 0.6 ? 1.4 : 0.8);
+      rig.body.rotation.z = c.flinch.side * fl * 0.25;
+      if (fl > 0) rig.crown.forEach((cr, i) => { cr.rotation.x += Math.sin(t * 60 + i) * fl * 0.25; });
       (rig.core!.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.5 + open * 0.5, 0.25 + open * 0.6);
       const beam = rig.beam!;
       beam.visible = c.state === "aim" && c.stateT >= 0 && c.stateT < ESTILHACO.aimTime;
@@ -934,44 +1116,117 @@ export class Renderer {
     }
   }
 
+  /** Solta as peças do corpo no mundo com velocidade e giro (vetores criados uma vez por morte). */
+  private shatter(v: CreatureView, sim: Sim) {
+    const { rig, c } = v;
+    rig.root.updateMatrixWorld(true);
+    const cx = c.pos.x, cz = c.pos.z, cy = c.pos.y + c.height * 0.5;
+    const f0 = sim.nav.floorAt(cx, cz), floor = Number.isNaN(f0) ? c.pos.y : f0;
+    for (const pc of rig.pieces) {
+      this.dynRoot.attach(pc);
+      const dx = pc.position.x - cx, dy = pc.position.y - cy, dz = pc.position.z - cz;
+      const l = Math.hypot(dx, dy, dz) || 1;
+      const sp = 2 + Math.random() * 3;
+      pc.userData.vel = new THREE.Vector3((dx / l) * sp + (Math.random() - 0.5), Math.abs(dy / l) * sp + 1.5 + Math.random() * 2, (dz / l) * sp + (Math.random() - 0.5));
+      pc.userData.spin = new THREE.Vector3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14);
+      pc.userData.s0 = pc.scale.clone();
+      pc.userData.floor = floor;
+    }
+    for (const r of rig.rims) r.visible = false;
+    if (rig.core) rig.core.visible = false;
+  }
+
+  /** Véu: a fita ondula no shader, o saco incha antes de soltar a névoa e murcha depois. */
+  private animateVeu(v: CreatureView, fl: number) {
+    const { rig, c } = v;
+    const t = this.time;
+    const u = rig.uniforms!;
+    u.uTime.value = t + c.pos.x;
+    const swell = c.state === "swell" ? Math.min(1, c.stateT / VEU.swellTime) : 0;
+    const recover = c.state === "recover" ? 1 - Math.min(1, c.stateT / VEU.recoverTime) : 0;
+    u.uSwell.value = swell;
+    const k = 1 + swell * 0.9 - recover * 0.35;
+    rig.sac!.scale.set(k + Math.sin(t * 40) * swell * 0.04, (0.8 + Math.sin(t * 1.7) * 0.05) * k, k);
+    rig.body.position.y = 0.65 + Math.sin(t * 1.4 + c.pos.z) * 0.12;
+    rig.body.rotation.z = Math.sin(t * 0.9) * 0.12 + c.flinch.side * fl * 0.5;
+    rig.body.rotation.x = -fl * 0.4;
+    if (c.state === "pushed") rig.body.rotation.x += 0.5;
+  }
+
   private updateViewmodel(sim: Sim, dt: number, speed: number) {
-    const has = !!sim.arsenal.current;
-    this.vm.root.visible = has && sim.alive;
+    const cur = sim.arsenal.current;
+    const has = !!cur;
+    if (cur !== this.vmWeapon) {
+      this.vmWeapon = cur;
+      this.vm = cur === "fole" ? this.vmFole : this.vmAgulha;
+      this.vmAgulha.flash.visible = false; this.vmFole.flash.visible = false;
+    }
+    this.vmAgulha.root.visible = has && sim.alive && this.vm === this.vmAgulha;
+    this.vmFole.root.visible = has && sim.alive && this.vm === this.vmFole;
     this.vmBeacon.root.visible = sim.beacon.owned && sim.alive && (sim.beacon.state === "ready" || sim.beacon.state === "recharging");
     if (!has) return;
+    const vm = this.vm, fole = vm === this.vmFole;
     const p = sim.player;
-    this.recoil = Math.max(0, this.recoil - dt * 12);
-    if (this.recoil < 0.6) this.vm.flash.visible = false;
+    this.recoil = Math.max(0, this.recoil - dt * (fole ? 6 : 12));
+    if (this.recoil < 0.6) vm.flash.visible = false;
     this.reloadAnim = Math.max(0, this.reloadAnim - dt);
     this.switchAnim = Math.max(0, this.switchAnim - dt);
     this.throwAnim = Math.max(0, this.throwAnim - dt);
     this.healAnim = Math.max(0, this.healAnim - dt);
+    this.soproAnim = Math.max(0, this.soproAnim - dt);
     const bob = Math.sin(this.bobT) * 0.012 * Math.min(1, speed / 5.5);
     const bobX = Math.cos(this.bobT * 0.5) * 0.012 * Math.min(1, speed / 5.5);
-    let x = 0.17 + bobX, y = -0.17 + bob, z = -0.34 + this.recoil * 0.045;
-    let rx = this.recoil * 0.09, ry = 0, rz = 0;
+    const rc = this.recoil;
+    // Agulha: coice curto e seco; Fole: coice longo que joga o cano para cima e para trás
+    let x = 0.17 + bobX, y = (fole ? -0.19 : -0.17) + bob - (fole ? rc * 0.02 : 0), z = -0.34 + rc * (fole ? 0.09 : 0.045);
+    let rx = rc * (fole ? 0.32 : 0.09), ry = 0, rz = fole ? -rc * 0.06 : 0;
     if (p.sprinting) { x += 0.04; y -= 0.05; ry = 0.6; rz = 0.25; rx = -0.15; }
     if (p.sliding) { rz = -0.3; }
+    // recarga: a cápsula sai por baixo, a mão de apoio busca outra e encaixa
+    let magY = 0, magZ = 0, handY = 0, handZ = 0;
     if (this.reloadAnim > 0) {
       const k = 1 - this.reloadAnim / this.reloadDur;
       const s = Math.sin(k * Math.PI);
-      rz += s * 0.7; y -= s * 0.06; rx += s * 0.2;
-      this.vm.mag.position.y = -s * 0.12;
-    } else this.vm.mag.position.y = 0;
+      rz += s * (fole ? 0.35 : 0.7); y -= s * 0.06; rx += s * 0.2;
+      if (k < 0.3) magY = -(k / 0.3) * 0.16;
+      else if (k < 0.55) { magY = -0.3; handY = -((k - 0.3) / 0.25) * 0.12; }
+      else if (k < 0.85) { const u = (k - 0.55) / 0.3; magY = -0.16 * (1 - u); handY = -0.12 * (1 - u); handZ = 0.1 * u; }
+      else { const u = (k - 0.85) / 0.15; handZ = 0.1 * (1 - u); z += Math.sin(u * Math.PI) * 0.015; } // encaixe
+    }
+    const m0 = vm.mag.userData.p0 as THREE.Vector3;
+    vm.mag.position.set(m0.x, m0.y + magY, m0.z + magZ);
+    vm.mag.visible = magY > -0.29;
+    if (vm.hand) { const h0 = vm.hand.userData.p0 as THREE.Vector3; vm.hand.position.set(h0.x, h0.y + handY, h0.z + handZ); }
+    if (fole && vm.hand) vm.hand.position.z += Math.max(0, rc - 0.3) * 0.08; // bombeia depois do disparo
+    if (vm.slide) vm.slide.position.z = Math.min(1, rc * 1.4) * 0.04;
+    if (vm.bellows) vm.bellows.scale.z = 1 - rc * 0.35 - Math.sin(Math.min(1, this.soproAnim / 0.5) * Math.PI) * 0.45;
+    if (this.soproAnim > 0) { const s = Math.sin((this.soproAnim / 0.5) * Math.PI); z += s * 0.05; rx -= s * 0.12; }
     if (this.switchAnim > 0) y -= Math.sin((this.switchAnim / 0.45) * Math.PI) * 0.25;
     if (this.healAnim > 0) { y -= 0.12; rx -= 0.4; }
-    this.vm.root.position.set(x, y, z);
-    this.vm.root.rotation.set(rx, ry, rz);
+    vm.root.position.set(x, y, z);
+    vm.root.rotation.set(rx, ry, rz);
     const a = sim.arsenal.ammo();
     if (a) {
-      const f = a.mag / 24;
-      this.vm.magMat.emissiveIntensity = 0.2 + f * 1.4;
-      this.vm.mag.scale.y = 0.4 + f * 0.6;
+      const max = fole ? FOLE_MAG : 24;
+      const f = a.mag / max;
+      vm.magMat.emissiveIntensity = 0.2 + f * 1.4;
+      if (!fole) vm.mag.scale.y = 0.4 + f * 0.6;
+      // indicadores acesos: um por fração do pente
+      const n = vm.leds.length;
+      const lit = Math.ceil(f * n - 1e-6);
+      const low = f <= 0.25;
+      for (let i = 0; i < n; i++) {
+        const m = vm.leds[i].material as THREE.MeshBasicMaterial;
+        const on = i < lit;
+        const blink = low && on && Math.sin(this.time * 12) < 0;
+        if (on && !blink) m.color.set(low ? 0xff5040 : fole ? 0xffa040 : 0x39d8ff); else m.color.set(0x0b1418);
+      }
     }
-    this.vm.coils.forEach((c, i) => ((c.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2 + Math.sin(this.time * 6 + i) * 0.4 + this.recoil * 3));
+    const glowK = this.reloadAnim > 0 ? 0.3 : 1;
+    vm.coils.forEach((c, i) => ((c.material as THREE.MeshStandardMaterial).emissiveIntensity = (1.2 + Math.sin(this.time * 6 + i) * 0.4 + this.recoil * 3) * glowK));
     // baliza na mão esquerda
-    const ty = -0.2 - (this.throwAnim > 0 ? Math.sin((this.throwAnim / 0.4) * Math.PI) * 0.1 : 0) + bob;
-    this.vmBeacon.root.position.set(-0.27, ty - 0.04, -0.42);
+    const ty = -0.19 - (this.throwAnim > 0 ? Math.sin((this.throwAnim / 0.4) * Math.PI) * 0.1 : 0) + bob;
+    this.vmBeacon.root.position.set(-0.25, ty - 0.04, -0.42);
     const ready = sim.beacon.state === "ready";
     (this.vmBeacon.light.material as THREE.MeshBasicMaterial).color.set(ready ? 0x7ff6ff : 0x305060);
     // luz do viewmodel aproxima a iluminação local
@@ -991,7 +1246,7 @@ export class Renderer {
     const t = this.time * 0.05;
     this.camera.position.set(74 + Math.sin(t) * 6, 2.2 + Math.sin(t * 0.8) * 0.3, -15.5);
     this.camera.rotation.set(0.02, 0.45 + Math.sin(t * 0.7) * 0.12, 0);
-    this.vm.root.visible = false; this.vmBeacon.root.visible = false;
+    this.vmAgulha.root.visible = false; this.vmFole.root.visible = false; this.vmBeacon.root.visible = false;
     for (const l of this.lights) {
       let f = 1;
       if (l.flicker) { const n = Math.sin(this.time * 13.1 + l.base) * Math.sin(this.time * 7.3 + l.base * 2); f = n > 1 - l.flicker ? 0.25 : 1; }

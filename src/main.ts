@@ -8,13 +8,14 @@ import { AudioEngine } from "./audio/audio";
 import { Input } from "./input";
 import { Autopilot } from "./autopilot";
 import { F1 } from "./levels/f1";
-import { F2_PREVIEW, makeLab, type LabStage } from "./levels/lab";
+import { makeLab, type LabStage } from "./levels/lab";
+import { F2 } from "./levels/f2";
 import type { LevelDef } from "./levels/types";
 import { angleDiff, yawTo } from "./core/math";
 import * as UI from "./ui/dom";
-import { PlanRunner, tutorialToShelter, dieInWave2, finishPraca, quickOpening, type Plan } from "./scenarios";
+import { PlanRunner, tutorialToShelter, dieInWave2, finishPraca, quickOpening, f2Full, f2TakeFole, f2LowPassage, f2HighRoute, f2Praca, f2Boia, type Plan } from "./scenarios";
 
-export const BUILD = { version: "0.3.1", milestone: "D03" };
+export const BUILD = { version: "0.4.0", milestone: "D04" };
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -27,9 +28,14 @@ const DEFAULT_OPTS: Options = { sens: 1, fov: 75, invert: false, master: 0.8, mu
 type GState = "menu" | "loading" | "playing" | "paused" | "dead" | "result";
 
 function levelById(id: string): LevelDef {
-  if (id === "F2P") return F2_PREVIEW;
+  if (id === "F2" || id === "F2P") return F2; // "F2P" = registro da prévia antiga
   if (id === "LAB") return makeLab(LAB ?? "d02");
   return F1;
+}
+
+/** Registro de entrada da F2 para quem não tem o da F1 (repetição): arsenal padrão de fim da F1. */
+function f2Entry(difficulty: Difficulty): Checkpoint {
+  return { phase: "F2", point: "F2-A", hp: 100, medkits: 1, weapons: { agulha: { mag: WEAPONS.agulha.mag, reserve: 72 } }, current: "agulha", hasBeacon: true, objective: "", flags: {}, difficulty, playTime: 0, deaths: 0 };
 }
 
 class Game {
@@ -130,11 +136,11 @@ class Game {
     this.state = "menu";
     this.renderer.menuMode = true;
     if (this.renderer.level?.id !== "F1") this.renderer.buildLevel(F1);
-    const save = this.store.load();
+    const save = this.loadSave();
     const cont = $<HTMLButtonElement>("btnContinue");
     cont.disabled = !save;
     $<HTMLButtonElement>("btnSelect").disabled = !(save?.completed.includes("F1"));
-    $("continueInfo").textContent = save ? `Último registro: ${save.checkpoint.phase === "F2P" ? "Prévia de F2" : "F1 • Última Chamada"} • ${save.checkpoint.point} • ${({ historia: "História", normal: "Normal", intenso: "Intenso" } as const)[save.checkpoint.difficulty]}` : this.store.sessionOnly ? "Progresso disponível apenas nesta sessão" : "";
+    $("continueInfo").textContent = save ? `Último registro: ${save.checkpoint.phase === "F2" ? "F2 • Mercado Afogado" : "F1 • Última Chamada"} • ${save.checkpoint.point} • ${({ historia: "História", normal: "Normal", intenso: "Intenso" } as const)[save.checkpoint.difficulty]}` : this.store.sessionOnly ? "Progresso disponível apenas nesta sessão" : "";
     this.show("menu");
   }
 
@@ -175,10 +181,11 @@ class Game {
 
   buildSelect() {
     const list = $("selectList"); list.innerHTML = "";
-    const save = this.store.load();
+    const save = this.loadSave();
     const add = (label: string, fn: () => void, enabled = true) => { const b = document.createElement("button"); b.innerHTML = label; b.disabled = !enabled; b.onclick = () => { this.audio.ensure(); fn(); }; list.appendChild(b); };
     add("F1 • Última Chamada <small>repetição • 8–10 min</small>", () => { this.replay = true; this.startLevel(F1, "F1-A", undefined); });
-    add("F2 • Mercado Afogado <small>prévia — a fase real chega no D04</small>", () => { this.replay = true; this.startLevel(F2_PREVIEW, "F2-A", save?.checkpoint.phase === "F2P" ? save.checkpoint : undefined); }, !!save?.unlocked.includes("F2"));
+    // repetição de F2 começa com o arsenal de quem terminou F1 (Agulha e baliza)
+    add("F2 • Mercado Afogado <small>repetição • 10–12 min</small>", () => { this.replay = true; this.startLevel(F2, "F2-A", f2Entry(this.difficulty)); }, !!save?.unlocked.includes("F2"));
     const back = document.createElement("button"); back.textContent = "Voltar"; back.onclick = () => this.showMenu(); list.appendChild(back);
   }
 
@@ -189,8 +196,18 @@ class Game {
   }
   startLab() { this.replay = true; this.startLevel(makeLab(LAB!), "start", undefined); }
 
-  continueGame() {
+  /** Carrega o save migrando registros antigos (prévia "F2P" → F2). */
+  loadSave(): SaveData | null {
     const s = this.store.load();
+    if (s && s.checkpoint.phase === "F2P") {
+      s.checkpoint = { ...s.checkpoint, phase: "F2", point: "F2-A", flags: {}, objective: "", playTime: 0, deaths: 0, stats: undefined };
+      try { this.store.save({ checkpoint: s.checkpoint, completed: s.completed, unlocked: s.unlocked }); } catch { /* segue só nesta sessão */ }
+    }
+    return s;
+  }
+
+  continueGame() {
+    const s = this.loadSave();
     if (!s) return;
     this.replay = false; this.difficulty = s.checkpoint.difficulty;
     this.startLevel(levelById(s.checkpoint.phase), s.checkpoint.point, s.checkpoint);
@@ -262,9 +279,11 @@ class Game {
     this.startLevel(levelById(cp.phase), cp.point, cp);
   }
   goNext() {
-    const s = this.store.load();
+    if (this.sim?.level.id === "F2") return; // F3 ainda não existe
+    const s = this.loadSave();
     const cp = this.replay ? this.lastCp : s?.checkpoint;
-    this.startLevel(F2_PREVIEW, "F2-A", cp && cp.phase === "F2P" ? cp : undefined);
+    // a F2 começa com o inventário com que a F1 terminou
+    this.startLevel(F2, "F2-A", cp && cp.phase === "F2" ? cp : f2Entry(this.difficulty));
   }
 
   // ---------- eventos ----------
@@ -291,15 +310,18 @@ class Game {
           if (this.lastCp) { this.lastCp = { ...this.lastCp, deaths: (this.lastCp.deaths ?? 0) + 1, playTime: sim.playTimeBase + sim.stats.time }; if (!this.replay) { const prev = this.store.load(); if (prev) this.store.save({ ...prev, checkpoint: this.lastCp }); } }
           break;
         }
-        case "levelComplete": this.complete(e.route); break;
-        case "pickup": this.toast(e.kind === "dardos" ? `+${e.amount} dardos` : "+1 curativo"); break;
+        case "levelComplete": if (sim.level.id === "F2") this.completeF2(e.route, e.alive ?? 0); else this.complete(e.route); break;
+        case "pickup": this.toast(e.kind === "dardos" ? `+${e.amount} dardos` : e.kind === "fole" ? `+${e.amount} cargas do Fole` : "+1 curativo"); break;
+        case "switch": if (e.weapon === "fole" && !this.foleHinted) { this.foleHinted = true; this.toast("Fole • 2 ou roda do mouse troca de arma"); } break;
       }
     }
   }
 
   complete(route: string) {
     const sim = this.sim!;
-    const exitCp: Checkpoint = { ...sim.checkpoint("F2-A"), phase: "F2P", objective: "Abra a comporta baixa (D04)", flags: {} };
+    // registro de entrada da F2: leva vida, curativos, arsenal e baliza da F1; tempo e contadores do capítulo recomeçam
+    sim.applyShelterFloor();
+    const exitCp: Checkpoint = { ...sim.checkpoint("F2-A"), phase: "F2", objective: "", flags: {}, playTime: 0, deaths: 0, stats: undefined };
     this.persist(exitCp, { completed: ["F1"], unlocked: ["F1", "F2"] });
     this.state = "result";
     this.input.releaseLock();
@@ -310,7 +332,35 @@ class Game {
       ["Tempo", `${mm}:${String(ss).padStart(2, "0")}`], ["Rota até a catraca", route], ["Criaturas derrubadas", String(st.kills)],
       ["Precisão da Agulha", `${acc}%`], ["Quedas", String(sim.deathsBase + st.deaths)], ["Chamados da baliza", String(st.pulses)], ["Dano recebido", String(Math.round(st.damageTaken))],
     ].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
-    (window as any).__fhResult = { route, ...st, deathsTotal: sim.deathsBase + st.deaths };
+    (window as any).__fhResult = { level: "F1", route, ...st, deathsTotal: sim.deathsBase + st.deaths };
+    $("resTitle").textContent = "F1 • Última Chamada";
+    $("resQuote").textContent = "Nara: “A primeira trava abriu. A balsa tá andando.”";
+    const nb = $<HTMLButtonElement>("btnNext"); nb.disabled = false; nb.textContent = "Seguir para o mercado";
+    this.show("result");
+  }
+
+  completeF2(route: string, alive: number) {
+    const sim = this.sim!;
+    const exitCp: Checkpoint = { ...sim.checkpoint("F2-B"), objective: "Mercado Afogado concluído" };
+    this.persist(exitCp, { completed: ["F1", "F2"], unlocked: ["F1", "F2"] });
+    this.state = "result";
+    this.input.releaseLock();
+    const st = sim.stats;
+    const total = sim.playTimeBase + st.time;
+    const mm = Math.floor(total / 60), ss = Math.floor(total % 60);
+    const agShots = st.shots, agHits = st.hits;
+    const acc = agShots > 0 ? Math.round((agHits / agShots) * 100) : 0;
+    const foleAcc = st.foleShots ? Math.round((st.foleHits / (st.foleShots * 6)) * 100) : 0;
+    $("resTable").innerHTML = [
+      ["Tempo", `${mm}:${String(ss).padStart(2, "0")}`], ["Rota até a praça", route === "toldo" ? "Por cima (toldos, Agulha)" : "Por baixo (névoa, Fole)"],
+      ["Criaturas derrubadas", String(st.kills)], ["Comuns vivos na saída", String(alive)],
+      ["Precisão da Agulha", `${Math.min(100, acc)}%`], ["Fragmentos do Fole no alvo", `${foleAcc}%`], ["Sopros", String(st.sopros)],
+      ["Quedas", String(sim.deathsBase + st.deaths)], ["Dano recebido", String(Math.round(st.damageTaken))],
+    ].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
+    (window as any).__fhResult = { level: "F2", route, alive, ...st, deathsTotal: sim.deathsBase + st.deaths };
+    $("resTitle").textContent = "F2 • Mercado Afogado";
+    $("resQuote").textContent = "Nara: “Comporta baixa vencida. Próxima parada: a casa das bombas.”";
+    const nb = $<HTMLButtonElement>("btnNext"); nb.disabled = true; nb.textContent = "F3 • Casa das Bombas — em breve";
     this.show("result");
   }
 
@@ -337,7 +387,16 @@ class Game {
     $("dirs").appendChild(el); this.dmgInd.push({ el, ang, t: 1 });
   }
 
+  isOutdoors(sim: Sim): boolean {
+    const env = sim.level.env, p = sim.player.pos;
+    if (!env.rain) return false;
+    const rects = env.outdoors ?? [[62, -9, 88, 9]];
+    return rects.some((r) => p.x > r[0] && p.x < r[2] && p.z > r[1] && p.z < r[3]);
+  }
   private kitEls: HTMLElement[] | null = null;
+  private slotKey = "";
+  private fogVis = 0;
+  foleHinted = false;
   private diagT = 0;
   updateHud(dt: number) {
     const sim = this.sim!;
@@ -359,6 +418,14 @@ class Game {
       UI.text("altCost", am.mag < d.altCost ? `◆${d.altCost} sem carga` : `◆${d.altCost}`);
       UI.style("altCost", "color", am.mag < d.altCost ? "#ff8080" : "");
     } else UI.text("altCost", "");
+    // armas que a Lia carrega (número do atalho)
+    const slots = ([...a.owned.keys()] as (keyof typeof WEAPONS)[]).sort((x, y) => WEAPONS[x].slot - WEAPONS[y].slot);
+    const sk = slots.join(",") + "|" + a.current;
+    if (sk !== this.slotKey) { this.slotKey = sk; UI.html("wSlots", slots.length > 1 ? slots.map((w) => (w === a.current ? `<b>${WEAPONS[w].slot} ${WEAPONS[w].nome.toUpperCase()}</b>` : `<i>${WEAPONS[w].slot} ${WEAPONS[w].nome.toUpperCase()}</i>`)).join("  ") : ""); }
+    // névoa do Véu na câmera
+    const fogK = sim.cloudDensity(sim.player.eyePos());
+    this.fogVis += (fogK - this.fogVis) * Math.min(1, dt * 5);
+    UI.style("fogveil", "opacity", (this.fogVis * 0.92).toFixed(2));
     // baliza junto à mira
     const b = sim.beacon;
     UI.style("bRing", "display", b.owned ? "" : "none"); UI.style("bRingBg", "display", b.owned ? "" : "none");
@@ -471,7 +538,7 @@ class Game {
       const e = sim.player.eyePos();
       this.audio.setListener(e, sim.player.yaw, sim.player.pitch);
       const danger = sim.creatures.some((c) => c.alive && !c.passive && c.aware) ? 1 : 0;
-      this.audio.update(dt, { danger, outdoors: sim.level.env.rain && sim.player.pos.x > 62 && sim.player.pos.x < 88, paused: this.state !== "playing" });
+      this.audio.update(dt, { danger, outdoors: this.isOutdoors(sim), paused: this.state !== "playing" });
     } else {
       this.renderer.menuCamera(dt);
       this.audio.update(dt, { danger: 0, outdoors: true, paused: true });
@@ -488,6 +555,8 @@ if (DEBUG) {
     get sim() { return game.sim; },
     get state() { return game.state; },
     setSpeed(s: number) { game.timeScale = s; },
+    /** Começa uma fase direto (F2 com o inventário padrão de fim da F1). */
+    start(id: "F1" | "F2", point?: string) { game.replay = true; game.startLevel(id === "F2" ? F2 : F1, point ?? `${id}-A`, id === "F2" ? { ...f2Entry(game.difficulty), point: point ?? "F2-A", flags: point === "F2-B" ? { fole: true, registro1: true } : {}, weapons: point === "F2-B" ? { agulha: { mag: 24, reserve: 72 }, fole: { mag: 8, reserve: 8 } } : { agulha: { mag: 24, reserve: 72 } } } : undefined); },
     /** Equivale a mover o mouse até mirar o ponto (só no modo de depuração). */
     aimAt(p: { x: number; y: number; z: number }) { if (game.sim) new Autopilot(game.sim).aimAt(p); },
     autopilot() { if (!game.sim) return null; game.auto = new Autopilot(game.sim); return game.auto; },
@@ -499,6 +568,9 @@ if (DEBUG) {
         tutorial: tutorialToShelter, dieWave2: dieInWave2, quick: quickOpening,
         finish: (r) => finishPraca(r, (arg as any) ?? "terreo"),
         full: function* (r) { yield* tutorialToShelter(r); yield* finishPraca(r, (arg as any) ?? "terreo"); },
+        f2: (r) => f2Full(r, (arg as any) ?? "baixo"),
+        f2Fole: f2TakeFole, f2Low: f2LowPassage, f2High: f2HighRoute, f2Praca: f2Praca,
+        f2Boia: (r) => f2Boia(r, arg !== "limpa"),
       };
       game.plan = new PlanRunner(game.sim, auto, plans[name]);
       return true;

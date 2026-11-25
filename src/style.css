@@ -88,3 +88,9 @@ h1::after { content: attr(data-text); position: absolute; left: 3px; top: 0; col
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
 @keyframes load { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
 @keyframes glitch { 0%, 92% { transform: none; opacity: 0; } 93% { transform: translateX(-4px); opacity: 1; } 95% { transform: translateX(5px); opacity: 1; } 97% { transform: none; opacity: 0; } }
+
+/* névoa do Véu: véu de tela que acompanha a densidade no olho */
+#fogveil { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(150,180,172,0.55) 0%, rgba(120,150,145,0.85) 60%, rgba(90,115,112,0.95) 100%); mix-blend-mode: normal; }
+#wSlots { font-size: 0.62em; letter-spacing: 0.18em; color: #6f8890; margin-bottom: 2px; }
+#wSlots b { color: var(--cyan); font-weight: 600; }
+#wSlots i { font-style: normal; color: #3f5258; }

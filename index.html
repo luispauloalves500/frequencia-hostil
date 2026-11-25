@@ -11,6 +11,7 @@
   <canvas id="view"></canvas>
   <div id="vignette"></div>
   <div id="hurtflash"></div>
+  <div id="fogveil"></div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
@@ -32,6 +33,7 @@
       <div id="medkits"><span class="kit"></span><span class="kit"></span><span class="hint">F</span></div>
     </div>
     <div id="ammo">
+      <div id="wSlots"></div>
       <div id="wName">—</div>
       <div><span id="mag">--</span><span id="reserve">/ --</span></div>
       <div id="mode"></div>
@@ -145,10 +147,10 @@
   <div id="result" class="screen hidden panel resultPanel">
     <div class="kicker">CAPÍTULO CONCLUÍDO</div>
     <h2 id="resTitle">F1 • Última Chamada</h2>
-    <p class="muted">Nara: “A primeira trava abriu. A balsa tá andando.”</p>
+    <p class="muted" id="resQuote">Nara: “A primeira trava abriu. A balsa tá andando.”</p>
     <table id="resTable"></table>
     <nav class="menuList">
-      <button data-act="next" class="primary">Seguir para o mercado</button>
+      <button data-act="next" class="primary" id="btnNext">Seguir para o mercado</button>
       <button data-act="menu">Menu principal</button>
     </nav>
   </div>
