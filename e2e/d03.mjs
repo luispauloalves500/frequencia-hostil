@@ -111,11 +111,11 @@ export async function run(url) {
     R.check("concluiu pelo térreo e exibiu o resultado de F1", res1.r.route === "térreo" && res1.table.includes("térreo") && res1.r.deathsTotal >= 1, res1.table.replace(/\n/g, " • "));
     await sleep(600);
     await page.screenshot({ path: SHOTS + "05-resultado-f1.png" });
-    const after = await page.evaluate(() => { const d = window.__saves(); return { f2p: d.some((x) => x.checkpoint.phase === "F2P"), unlocked: d.some((x) => x.unlocked.includes("F2") && x.completed.includes("F1")) }; });
-    R.check("fim de capítulo salvo (F2 desbloqueada)", after.f2p && after.unlocked);
+    const after = await page.evaluate(() => { const d = window.__saves(); return { f2: d.some((x) => x.checkpoint.phase === "F2" && x.checkpoint.point === "F2-A"), unlocked: d.some((x) => x.unlocked.includes("F2") && x.completed.includes("F1")) }; });
+    R.check("fim de capítulo salvo (entrada da F2 gravada, F2 desbloqueada)", after.f2 && after.unlocked);
     await page.click('#result button[data-act="next"]');
-    await waitFor(page, () => window.__fh.state === "playing" && window.__fh.sim.level.id === "F2P", null, 20000, "prévia de F2");
-    R.check("“Seguir para o mercado” abre a prévia temporária de F2", true);
+    await waitFor(page, () => window.__fh.state === "playing" && window.__fh.sim.level.id === "F2", null, 30000, "F2");
+    R.check("“Seguir para o mercado” abre a F2 • Mercado Afogado", true);
 
     // segunda volta: restaura o registro de F1-B e conclui pela passarela
     await page.close();

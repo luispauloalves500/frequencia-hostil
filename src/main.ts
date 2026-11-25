@@ -551,6 +551,8 @@ if (DEBUG) {
     get sim() { return game.sim; },
     get state() { return game.state; },
     setSpeed(s: number) { game.timeScale = s; },
+    /** Começa uma fase a partir de um registro (como o Continuar faria), gravando progresso se replay = false. */
+    startWith(id: "F1" | "F2", point: string, cp: Checkpoint, replay = false) { game.replay = replay; game.difficulty = cp.difficulty; game.startLevel(id === "F2" ? F2 : F1, point, cp, !replay); },
     /** Começa uma fase direto (F2 com o inventário padrão de fim da F1). */
     start(id: "F1" | "F2", point?: string) { game.replay = true; game.startLevel(id === "F2" ? F2 : F1, point ?? `${id}-A`, id === "F2" ? { ...f2Entry(game.difficulty), point: point ?? "F2-A", flags: point === "F2-B" ? { fole: true, registro1: true } : {}, weapons: point === "F2-B" ? { agulha: { mag: 24, reserve: 72 }, fole: { mag: 8, reserve: 8 } } : { agulha: { mag: 24, reserve: 72 } } } : undefined); },
     /** Equivale a mover o mouse até mirar o ponto (só no modo de depuração). */
