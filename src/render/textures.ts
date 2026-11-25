@@ -231,3 +231,104 @@ export const texSky = () => canvasTex("sky", 512, (g, s) => {
   const r = rand(99);
   for (let k = 0; k < 160; k++) { g.fillStyle = `rgba(220,230,255,${r() * 0.5})`; g.fillRect(r() * s, r() * s * 0.5, 1.2, 1.2); }
 }, false);
+
+// ---------------------------------------------------------------- v0.4 • F2 e acabamento
+
+/** Mapa de rugosidade: manchas molhadas (escuras = brilhantes) e sujeira seca. Canal verde é o lido. */
+export const texWetRough = (seed = 5, wet = 0.5) => canvasTex(`wetrough:${seed}:${wet}`, 256, (g, s) => {
+  const r = rand(seed);
+  g.fillStyle = "rgb(200,200,200)"; g.fillRect(0, 0, s, s);
+  for (let k = 0; k < 18; k++) {
+    const x = r() * s, y = r() * s, rad = 18 + r() * 60;
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    const v = Math.round(40 + (1 - wet) * 90);
+    gr.addColorStop(0, `rgba(${v},${v},${v},0.85)`); gr.addColorStop(1, "rgba(200,200,200,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  }
+  for (let k = 0; k < 30; k++) { g.fillStyle = `rgba(255,255,255,${0.1 + r() * 0.2})`; g.fillRect(r() * s, r() * s, 2 + r() * 10, 2 + r() * 10); }
+  noise(g, s, 0.15, r);
+});
+
+/** Piso do corredor de gelo: placas pálidas com geada nas juntas. */
+export const texIce = () => canvasTex("ice", 512, (g, s) => {
+  const r = rand(41);
+  g.fillStyle = "#6f8a96"; g.fillRect(0, 0, s, s);
+  const n = 4, ts = s / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const v = 150 + r() * 30;
+    g.fillStyle = `rgb(${v * 0.78},${v * 0.92},${v})`; g.fillRect(i * ts + 3, j * ts + 3, ts - 6, ts - 6);
+  }
+  for (let k = 0; k < 60; k++) { g.strokeStyle = `rgba(240,250,255,${0.2 + r() * 0.3})`; g.lineWidth = 1; g.beginPath(); const x = r() * s, y = r() * s; g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 40, y + (r() - 0.5) * 40); g.stroke(); }
+  noise(g, s, 0.08, r);
+});
+export const texIceWall = () => canvasTex("icewall", 512, (g, s) => {
+  const r = rand(43);
+  g.fillStyle = "#566d78"; g.fillRect(0, 0, s, s);
+  const n = 8, ts = s / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const v = 120 + r() * 25; g.fillStyle = `rgb(${v * 0.8},${v * 0.93},${v})`; g.fillRect(i * ts + 2, j * ts + 2, ts - 4, ts - 4); }
+  const gr = g.createLinearGradient(0, s, 0, s * 0.55); gr.addColorStop(0, "rgba(235,248,255,0.65)"); gr.addColorStop(1, "rgba(235,248,255,0)");
+  g.fillStyle = gr; g.fillRect(0, 0, s, s); // geada subindo do piso
+  noise(g, s, 0.07, r);
+});
+/** Lona do toldo: listras azul/creme gastas. */
+export const texAwning = () => canvasTex("awning", 256, (g, s) => {
+  const r = rand(47);
+  for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? "#d8d0b8" : "#2c5c8c"; g.fillRect((i * s) / 8, 0, s / 8, s); }
+  for (let k = 0; k < 25; k++) { g.fillStyle = `rgba(20,25,20,${0.08 + r() * 0.12})`; g.beginPath(); g.ellipse(r() * s, r() * s, 6 + r() * 30, 4 + r() * 16, r() * 3, 0, 7); g.fill(); }
+  noise(g, s, 0.12, r);
+});
+/** Madeira pintada de azul da banca, descascando. */
+export const texBluePaint = () => canvasTex("bluepaint", 256, (g, s) => {
+  const r = rand(53);
+  g.fillStyle = "#2a5d8f"; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 8; i++) { g.fillStyle = "rgba(10,20,35,0.5)"; g.fillRect(0, (i * s) / 8, s, 2); }
+  for (let k = 0; k < 40; k++) { g.fillStyle = `rgba(${120 + r() * 40},${90 + r() * 30},${60 + r() * 20},0.8)`; g.beginPath(); g.ellipse(r() * s, r() * s, 2 + r() * 9, 1 + r() * 4, r() * 3, 0, 7); g.fill(); }
+  noise(g, s, 0.14, r);
+});
+/** Chapa da comporta: aço com rebites e ferrugem escorrida. */
+export const texGate = () => canvasTex("gate", 256, (g, s) => {
+  const r = rand(59);
+  g.fillStyle = "#3d4247"; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 4; i++) { g.fillStyle = "rgba(0,0,0,0.4)"; g.fillRect(0, (i * s) / 4, s, 3); g.fillRect((i * s) / 4, 0, 3, s); }
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 8; j++) { g.fillStyle = "#6a6e70"; g.beginPath(); g.arc((i * s) / 4 + 8, (j * s) / 8 + 8, 3, 0, 7); g.fill(); }
+  for (let k = 0; k < 22; k++) { const x = r() * s, y = r() * s * 0.6; const gr = g.createLinearGradient(x, y, x, y + 60 + r() * 80); gr.addColorStop(0, "rgba(140,70,30,0.7)"); gr.addColorStop(1, "rgba(140,70,30,0)"); g.fillStyle = gr; g.fillRect(x - 2 - r() * 4, y, 4 + r() * 8, 140); }
+  noise(g, s, 0.12, r);
+});
+/** Fumaça macia da nuvem do Véu (alfa). */
+export const texSmoke = () => canvasTex("smoke", 128, (g, s) => {
+  const r = rand(61);
+  g.clearRect(0, 0, s, s);
+  for (let k = 0; k < 14; k++) {
+    const x = s / 2 + (r() - 0.5) * s * 0.4, y = s / 2 + (r() - 0.5) * s * 0.4, rad = s * (0.18 + r() * 0.2);
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, "rgba(255,255,255,0.32)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  }
+}, false);
+/** Veias de luz para as cascas de cristal (aditivas). */
+export const texVeins = () => canvasTex("veins", 256, (g, s) => {
+  const r = rand(67);
+  g.fillStyle = "#000"; g.fillRect(0, 0, s, s);
+  g.lineCap = "round";
+  for (let k = 0; k < 16; k++) {
+    let x = r() * s, y = r() * s, a = r() * Math.PI * 2;
+    g.strokeStyle = `rgba(255,255,255,${0.5 + r() * 0.5})`; g.lineWidth = 1 + r() * 2.5;
+    g.beginPath(); g.moveTo(x, y);
+    for (let i = 0; i < 14; i++) { a += (r() - 0.5) * 0.9; x += Math.cos(a) * 9; y += Math.sin(a) * 9; g.lineTo(x, y); }
+    g.stroke();
+  }
+  g.globalCompositeOperation = "lighter"; g.filter = "blur(2px)"; g.drawImage(g.canvas, 0, 0); g.filter = "none"; g.globalCompositeOperation = "source-over";
+});
+/** Desenho a giz do segundo registro na parede do abrigo. */
+export function texWallDrawing(text: string) {
+  return canvasTex(`draw:${text}`, 256, (g, s) => {
+    g.clearRect(0, 0, s, s);
+    g.strokeStyle = "rgba(235,230,210,0.9)"; g.lineWidth = 4; g.lineCap = "round";
+    // plataforma, escada e a roda do registro
+    g.beginPath(); g.moveTo(30, 150); g.lineTo(226, 150); g.moveTo(60, 150); g.lineTo(30, 220); g.moveTo(50, 172); g.lineTo(72, 172); g.moveTo(42, 194); g.lineTo(64, 194); g.stroke();
+    g.beginPath(); g.arc(190, 115, 24, 0, 7); g.moveTo(166, 115); g.lineTo(214, 115); g.moveTo(190, 91); g.lineTo(190, 139); g.stroke();
+    g.beginPath(); g.moveTo(120, 60); g.quadraticCurveTo(160, 40, 180, 82); g.stroke();
+    g.beginPath(); g.moveTo(180, 82); g.lineTo(168, 74); g.moveTo(180, 82); g.lineTo(184, 68); g.stroke();
+    g.fillStyle = "rgba(235,230,210,0.9)"; g.font = "700 22px 'DejaVu Sans', sans-serif"; g.textAlign = "center"; g.fillText(text, s / 2, 40);
+  }, false);
+}
