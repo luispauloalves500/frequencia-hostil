@@ -15,6 +15,16 @@ export interface LevelEnv {
   rain: boolean;
   sea: boolean;
   music: string;
+  /** áreas com chuva: [x0, z0, x1, z1, piso] (padrão: as de F1) */
+  rainRects?: [number, number, number, number, number][];
+  /** plano do mar/canal: centro e tamanho (padrão: o de F1) */
+  seaRect?: { x: number; z: number; w: number; d: number };
+  /** cais com postes e lampiões (F1) */
+  quay?: boolean;
+  /** áreas a céu aberto (ambiente sonoro externo) */
+  outdoors?: [number, number, number, number][];
+  /** câmera do menu/visual da balsa */
+  ferryPath?: boolean;
 }
 
 export interface LevelDef {

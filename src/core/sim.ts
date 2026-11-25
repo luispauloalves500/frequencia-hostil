@@ -1,4 +1,4 @@
-import { BEACON, DIFFICULTY, NEEDLE_MARK, PLAYER, RISCADOR, ESTILHACO, WEAPONS, type Difficulty, type WeaponId } from "../config";
+import { BEACON, DIFFICULTY, FOLE, NEEDLE_MARK, PLAYER, RISCADOR, ESTILHACO, VEU, WEAPONS, type Difficulty, type WeaponId } from "../config";
 import { Beacon } from "./beacon";
 import { Creature, type CreatureCtx } from "./creatures";
 import { dirFromYawPitch, distXZ, rng, type V3 } from "./math";
@@ -25,12 +25,19 @@ export const emptyFrame = (): FrameInput => ({ ...emptyInput(), fireHeld: false,
 export interface SimEvent { type: string; [k: string]: any }
 
 export interface Interactable { id: string; pos: V3; radius: number; prompt: string; enabled: () => boolean; use: () => void; lockedPrompt?: () => string | null }
-export interface Pickup { id: string; pos: V3; kind: "dardos" | "curativo"; amount: number; taken: boolean }
+export type PickupKind = "dardos" | "curativo" | "fole";
+/** munição de cada caixa (o pictograma identifica a arma) */
+export const PICKUP_WEAPON: Partial<Record<PickupKind, WeaponId>> = { dardos: "agulha", fole: "fole" };
+export interface Pickup { id: string; pos: V3; kind: PickupKind; amount: number; taken: boolean }
+/** Nuvem do Véu: encobre a visão; o sopro do Fole a afasta por 3 s. */
+export interface Cloud { id: number; owner: string; pos: V3; radius: number; age: number; life: number; clearT: number }
+export interface RunStats { kills: number; shots: number; hits: number; deaths: number; damageTaken: number; time: number; pulses: number; foleShots: number; foleHits: number; sopros: number }
 export interface Trigger { id: string; min: V3; max: V3; once: boolean; fired: boolean; onEnter: () => void }
 export interface Latch { id: string; pos: V3; open: boolean; onOpen: () => void }
 export interface Projectile { id: number; pos: V3; vel: V3; dmg: number; life: number; alive: boolean }
 
 let projId = 1;
+let cloudId = 1;
 
 export class Sim {
   t = 0;
@@ -41,6 +48,9 @@ export class Sim {
   beacon = new Beacon();
   creatures: Creature[] = [];
   projectiles: Projectile[] = [];
+  clouds: Cloud[] = [];
+  /** estado numérico lido pela apresentação (progresso de comporta etc.); não é gravado */
+  vars: Record<string, number> = {};
   interactables: Interactable[] = [];
   pickups: Pickup[] = [];
   triggers: Trigger[] = [];
@@ -58,7 +68,7 @@ export class Sim {
   focus: Interactable | null = null;
   lastWindupStart = -10;
   beaconAim: { pos: V3; valid: boolean } | null = null;
-  stats = { kills: 0, shots: 0, hits: 0, deaths: 0, damageTaken: 0, time: 0, pulses: 0 };
+  stats: RunStats = { kills: 0, shots: 0, hits: 0, deaths: 0, damageTaken: 0, time: 0, pulses: 0, foleShots: 0, foleHits: 0, sopros: 0 };
   rand: () => number;
   damageMul = 1;
   playTimeBase = 0;
@@ -78,6 +88,9 @@ export class Sim {
       hurtPlayer: (d, from, src) => self.hurt(d, from, src),
       emit: (e) => self.emit(e),
       fireProjectile: (from, dir, owner) => self.fireProjectile(from, dir, owner),
+      spawnCloud: (owner, pos) => self.spawnCloud(owner, pos),
+      dissipate: (owner) => self.dissipate(owner),
+      hasCloud: (owner) => self.clouds.some((c) => c.owner === owner.id),
       others: this.creatures,
       rand: () => self.rand(),
     } as CreatureCtx;
@@ -93,7 +106,7 @@ export class Sim {
     this.nav = new NavGrid(this.world);
     this.nav.build();
     this.creatures.length = 0;
-    this.projectiles = [];
+    this.projectiles = []; this.clouds = []; this.vars = {};
     this.interactables = []; this.pickups = []; this.triggers = []; this.latches = [];
     this.ctx.world = this.world; this.ctx.nav = this.nav;
     this.alive = true; this.done = false; this.healT = -1; this.lastWindupStart = -10;
@@ -104,6 +117,9 @@ export class Sim {
       this.beacon = new Beacon(); if (cp.hasBeacon) this.beacon.acquire();
       this.playTimeBase = cp.playTime;
       this.deathsBase = cp.deaths ?? 0;
+      // contadores do capítulo continuam de onde o registro parou (resultado não zera ao Continuar)
+      const b = cp.stats;
+      if (b) { this.stats.kills = b.kills ?? 0; this.stats.shots = b.shots ?? 0; this.stats.hits = b.hits ?? 0; this.stats.pulses = b.pulses ?? 0; this.stats.damageTaken = b.damageTaken ?? 0; this.stats.foleShots = b.foleShots ?? 0; this.stats.foleHits = b.foleHits ?? 0; this.stats.sopros = b.sopros ?? 0; }
     } else {
       this.hp = PLAYER.maxHp; this.medkits = 1; this.flags = {}; this.arsenal = new Arsenal(); this.beacon = new Beacon();
     }
@@ -119,6 +135,7 @@ export class Sim {
       phase: this.level.id, point, hp: Math.ceil(this.hp), medkits: this.medkits,
       weapons: this.arsenal.snapshot(), current: this.arsenal.current, hasBeacon: this.beacon.owned,
       objective: this.objective, flags: { ...this.flags }, difficulty: this.difficulty, playTime: this.playTimeBase + this.stats.time, deaths: this.deathsBase + this.stats.deaths,
+      stats: { kills: this.stats.kills, shots: this.stats.shots, hits: this.stats.hits, pulses: this.stats.pulses, damageTaken: Math.round(this.stats.damageTaken), foleShots: this.stats.foleShots, foleHits: this.stats.foleHits, sopros: this.stats.sopros },
     };
   }
 
@@ -163,10 +180,34 @@ export class Sim {
     this.emit({ type: "estFire", pos: { ...from }, dir: { ...dir } });
   }
 
+  spawnCloud(owner: Creature, pos: V3) {
+    this.dissipate(owner);
+    const c: Cloud = { id: cloudId++, owner: owner.id, pos: { ...pos }, radius: VEU.cloudRadius, age: 0, life: VEU.cloudTime, clearT: 0 };
+    this.clouds.push(c);
+    this.emit({ type: "cloud", id: c.id, pos: { ...pos }, radius: c.radius });
+  }
+  dissipate(owner: Creature) {
+    const n = this.clouds.length;
+    this.clouds = this.clouds.filter((c) => c.owner !== owner.id);
+    if (this.clouds.length !== n) this.emit({ type: "cloudGone", owner: owner.id });
+  }
+  /** Densidade da névoa (0..1) num ponto — usada pela câmera e pelos testes. */
+  cloudDensity(p: V3): number {
+    let best = 0;
+    for (const c of this.clouds) {
+      if (c.clearT > 0) continue;
+      const d = Math.hypot(p.x - c.pos.x, p.z - c.pos.z);
+      if (d > c.radius || p.y > c.pos.y + 4) continue;
+      const fadeIn = Math.min(1, c.age / 0.6), fadeOut = Math.min(1, (c.life - c.age) / 0.6);
+      best = Math.max(best, Math.min(1, (1 - d / c.radius) * 1.8) * fadeIn * fadeOut);
+    }
+    return best;
+  }
+
   /** Raio de disparo: primeira superfície sólida ou criatura. */
-  traceShot(): { point: V3; creature: Creature | null; t: number; normal: V3 | null } {
+  traceShot(dirOverride?: V3): { point: V3; creature: Creature | null; t: number; normal: V3 | null } {
     const eye = this.player.eyePos();
-    const dir = dirFromYawPitch(this.player.yaw, this.player.pitch);
+    const dir = dirOverride ?? dirFromYawPitch(this.player.yaw, this.player.pitch);
     const range = this.arsenal.current ? WEAPONS[this.arsenal.current].range : 80;
     const wh = this.world.raycast(eye, dir, range, ["solid", "grate", "ceiling"]);
     let bestT = wh ? wh.t : range;
@@ -184,24 +225,77 @@ export class Sim {
   private doFire(mode: "primary" | "alt") {
     const r = this.arsenal.fire(mode);
     if (r === "none") return;
-    if (r === "dry") { this.emit({ type: "dry", mode }); return; }
+    if (r === "dry") { this.emit({ type: "dry", mode, weapon: this.arsenal.current }); return; }
+    const wid = this.arsenal.current!;
+    if (wid === "fole") { if (r === "shot") this.fireFole(); else this.sopro(); return; }
     this.stats.shots++;
     const tr = this.traceShot();
     const eye = this.player.eyePos();
     if (r === "shot") {
-      let dmg = WEAPONS[this.arsenal.current!].damage;
+      let dmg = WEAPONS[wid].damage;
       let marked = false;
       if (tr.creature) {
-        if (tr.creature.markT > 0) { dmg += NEEDLE_MARK.bonus; tr.creature.markT = 0; marked = true; }
+        // a marca só é consumida pelo próximo acerto primário da Agulha
+        if (tr.creature.markT > 0 && wid === "agulha") { dmg += NEEDLE_MARK.bonus; tr.creature.markT = 0; marked = true; }
         this.stats.hits++;
-        tr.creature.damage(dmg, this.ctx, eye);
+        tr.creature.damage(dmg, this.ctx, eye, tr.point);
         if (!tr.creature.alive) this.stats.kills++;
       }
-      this.emit({ type: "shot", from: eye, to: tr.point, hit: tr.creature?.id ?? null, dmg: tr.creature ? dmg : 0, marked, normal: tr.normal, killed: tr.creature ? !tr.creature.alive : false });
+      this.emit({ type: "shot", weapon: wid, from: eye, to: tr.point, hit: tr.creature?.id ?? null, dmg: tr.creature ? dmg : 0, marked, normal: tr.normal, killed: tr.creature ? !tr.creature.alive : false });
     } else {
       if (tr.creature) { tr.creature.markT = NEEDLE_MARK.duration; this.stats.hits++; }
-      this.emit({ type: "mark", from: eye, to: tr.point, hit: tr.creature?.id ?? null });
+      this.emit({ type: "mark", weapon: wid, from: eye, to: tr.point, hit: tr.creature?.id ?? null });
     }
+  }
+
+  /** Fole primário: seis fragmentos, cada um com seu próprio impacto. */
+  private fireFole() {
+    const eye = this.player.eyePos();
+    const yaw = this.player.yaw, pitch = this.player.pitch;
+    const n = FOLE.pellets, sp = FOLE.spread;
+    const pellets: { to: V3; hit: string | null; normal: V3 | null }[] = [];
+    const dmgBy = new Map<Creature, number>();
+    this.stats.foleShots++;
+    const rot = (this.stats.foleShots * 0.7) % (Math.PI * 2);
+    for (let i = 0; i < n; i++) {
+      // um no centro e o resto em anel, girando a cada disparo (padrão determinístico)
+      const a = rot + (i / (n - 1)) * Math.PI * 2, r = i === 0 ? 0 : sp * (0.75 + (i % 2) * 0.25);
+      const dir = dirFromYawPitch(yaw + Math.cos(a) * r, pitch + Math.sin(a) * r);
+      const tr = this.traceShot(dir);
+      if (tr.creature) { dmgBy.set(tr.creature, (dmgBy.get(tr.creature) ?? 0) + WEAPONS.fole.damage); this.stats.foleHits++; }
+      pellets.push({ to: tr.point, hit: tr.creature?.id ?? null, normal: tr.normal });
+    }
+    const hits: { id: string; dmg: number; killed: boolean }[] = [];
+    for (const [c, d] of dmgBy) {
+      const at = pellets.find((p) => p.hit === c.id)!.to;
+      c.damage(d, this.ctx, eye, at);
+      if (!c.alive) this.stats.kills++;
+      hits.push({ id: c.id, dmg: d, killed: !c.alive });
+    }
+    this.emit({ type: "shot", weapon: "fole", from: eye, to: pellets[0].to, pellets, hits, hit: hits[0]?.id ?? null, dmg: hits.reduce((x, h) => x + h.dmg, 0), killed: hits.some((h) => h.killed), marked: false, normal: pellets[0].normal });
+  }
+
+  /** Sopro do Fole: empurra comuns leves por até 4 m e afasta a névoa do Véu por 3 s. Sem dano. */
+  private sopro() {
+    const p = this.player, eye = p.eyePos();
+    const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
+    const pushed: string[] = [];
+    for (const c of this.creatures) {
+      if (!c.alive || !c.light) continue;
+      const dx = c.pos.x - p.pos.x, dz = c.pos.z - p.pos.z, d = Math.hypot(dx, dz);
+      if (d > FOLE.pushRange || d < 0.01) continue;
+      if ((dx * fx + dz * fz) / d < FOLE.pushCone) continue;
+      if (this.world.blocked(eye, c.center(), ["solid", "ceiling"])) continue;
+      if (c.push({ x: dx / d, y: 0, z: dz / d }, this.ctx)) pushed.push(c.id);
+    }
+    const cleared: number[] = [];
+    for (const cl of this.clouds) {
+      const dx = cl.pos.x - p.pos.x, dz = cl.pos.z - p.pos.z, d = Math.hypot(dx, dz);
+      const inside = d < cl.radius;
+      if (inside || (d < FOLE.clearRange + cl.radius * 0.5 && (dx * fx + dz * fz) / (d || 1) > 0.5)) { cl.clearT = FOLE.clearTime; cleared.push(cl.id); }
+    }
+    this.stats.sopros++;
+    this.emit({ type: "sopro", from: eye, dir: { x: fx, y: 0, z: fz }, pushed, cleared });
   }
 
   /** Ponto de piso válido para a baliza na direção da mira. */
@@ -291,6 +385,13 @@ export class Sim {
     this.ctx.others = this.creatures;
     this.nav.ensure();
     for (const c of this.creatures) c.update(dt, this.ctx);
+    // nuvens do Véu
+    if (this.clouds.length) {
+      for (const cl of this.clouds) { cl.age += dt; cl.clearT = Math.max(0, cl.clearT - dt); }
+      const n = this.clouds.length;
+      this.clouds = this.clouds.filter((c) => c.age < c.life);
+      if (n !== this.clouds.length) this.emit({ type: "cloudGone" });
+    }
 
     // projéteis
     for (const pr of this.projectiles) {
@@ -327,9 +428,10 @@ export class Sim {
     for (const pk of this.pickups) {
       if (pk.taken) continue;
       if (Math.hypot(pk.pos.x - p.pos.x, pk.pos.z - p.pos.z) < 1.0 && Math.abs(pk.pos.y - p.pos.y) < 1.2) {
-        if (pk.kind === "dardos") {
-          if (!this.arsenal.owned.has("agulha")) continue;
-          const n = this.arsenal.addReserve("agulha", pk.amount);
+        const wpn = PICKUP_WEAPON[pk.kind];
+        if (wpn) {
+          if (!this.arsenal.owned.has(wpn)) continue;
+          const n = this.arsenal.addReserve(wpn, pk.amount);
           if (n <= 0) continue;
           pk.taken = true; this.emit({ type: "pickup", kind: pk.kind, amount: n, id: pk.id });
         } else {

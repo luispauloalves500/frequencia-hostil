@@ -94,6 +94,33 @@ export const ESTILHACO = {
   height: 2.1,
 };
 
+/** Véu (F2): flutuador em fita. Incha 1,2 s, solta nuvem de 5 m por 5 s, recupera 2 s. */
+export const VEU = {
+  hp: 80,
+  speed: 1.7,
+  hover: 2.3, // altura do corpo acima do piso
+  swellTime: 1.2,
+  cloudRadius: 5,
+  cloudTime: 5,
+  recoverTime: 2,
+  triggerRange: 13,
+  radius: 0.5,
+  height: 1.3,
+  fallTime: 0.7,
+};
+
+/** Fole (F2): leque de 6 fragmentos; sopro empurra comuns leves e afasta a névoa. */
+export const FOLE = {
+  pellets: 6,
+  spread: 0.085, // rad (≈ 5°): a 3 m os seis fragmentos cabem num Riscador
+  pushRange: 6.5,
+  pushCone: 0.62, // cos do semiângulo (≈ 52°)
+  pushDist: 4,
+  pushTime: 0.35,
+  clearTime: 3,
+  clearRange: 9,
+};
+
 export const ENCOUNTER = {
   maxActiveF1: 6,
   entryTelegraph: 1.0,

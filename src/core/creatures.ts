@@ -1,4 +1,4 @@
-import { ENCOUNTER, ESTILHACO, RISCADOR } from "../config";
+import { ENCOUNTER, ESTILHACO, FOLE, RISCADOR, VEU } from "../config";
 import { angleDiff, distXZ, yawTo, type V3 } from "./math";
 import type { NavGrid } from "./nav";
 import type { World } from "./world";
@@ -18,13 +18,18 @@ export interface CreatureCtx {
   hurtPlayer(dmg: number, from: V3, src: string): void;
   emit(ev: any): void;
   fireProjectile(from: V3, dir: V3, owner: Creature): void;
+  /** Véu: solta a nuvem e a desfaz ao cair */
+  spawnCloud(owner: Creature, pos: V3): void;
+  dissipate(owner: Creature): void;
+  hasCloud(owner: Creature): boolean;
   others: Creature[];
   rand(): number;
 }
 
 export type CState =
   | "emerging" | "idle" | "patrol" | "chase" | "circle" | "windup" | "leap" | "skid"
-  | "lured" | "search" | "aim" | "reposition" | "hop" | "dead";
+  | "lured" | "search" | "aim" | "reposition" | "hop" | "dead"
+  | "swell" | "recover" | "drift" | "pushed";
 
 let nextId = 1;
 
@@ -65,30 +70,65 @@ export class Creature {
   anim = 0; // fase de animação
   heardPulse = -1;
   tag = "";
+  /** Véu: raio de coleira em torno de `home` */
+  leash = 6;
+  /** Véu: altura do centro do corpo acima do piso */
+  hover = VEU.hover;
+  /** reação ao último impacto (só visual): altura relativa 0..1, lado −1..1 */
+  flinch = { h: 0.5, side: 0, t: 0, n: 0 };
+  pushFrom: V3 = { x: 0, y: 0, z: 0 };
+  pushDir: V3 = { x: 0, y: 0, z: 0 };
+  private resume: CState = "chase";
 
   constructor(public type: CreatureType, public pos: V3, opts: Partial<Creature> = {}) {
     this.id = `${type}-${nextId++}`;
-    this.maxHp = this.hp = type === "riscador" ? RISCADOR.hp : ESTILHACO.hp;
+    this.maxHp = this.hp = type === "riscador" ? RISCADOR.hp : type === "veu" ? VEU.hp : ESTILHACO.hp;
     this.home = { ...pos };
     Object.assign(this, opts);
+    if (type === "veu") { this.state = "drift"; }
   }
 
   get alive() { return this.state !== "dead"; }
-  get radius() { return this.type === "riscador" ? RISCADOR.radius : ESTILHACO.radius; }
-  get height() { return this.type === "riscador" ? RISCADOR.height : ESTILHACO.height; }
-  get speed() { return this.type === "riscador" ? RISCADOR.speed : ESTILHACO.speed; }
+  get radius() { return this.type === "riscador" ? RISCADOR.radius : this.type === "veu" ? VEU.radius : ESTILHACO.radius; }
+  get height() { return this.type === "riscador" ? RISCADOR.height : this.type === "veu" ? VEU.height : ESTILHACO.height; }
+  get speed() { return this.type === "riscador" ? RISCADOR.speed : this.type === "veu" ? VEU.speed : ESTILHACO.speed; }
+  /** comuns leves: o sopro do Fole os empurra */
+  get light() { return this.type === "riscador" || this.type === "veu"; }
   /** Centro aproximado do corpo (alvo para mira) */
   center(): V3 { return { x: this.pos.x, y: this.pos.y + this.height * 0.55, z: this.pos.z }; }
   /** Ataque já anunciado não é interrompido pela baliza. */
-  get committed() { return this.state === "windup" || this.state === "leap" || (this.state === "aim" && this.stateT > 0); }
+  get committed() { return this.state === "windup" || this.state === "leap" || (this.state === "aim" && this.stateT > 0) || this.state === "pushed"; }
+
+  /** Sopro do Fole: desloca até `dist` metros na direção dada, conservando a colisão. */
+  push(dir: V3, ctx: CreatureCtx) {
+    if (!this.alive || !this.light) return false;
+    this.resume = this.type === "veu" ? "recover" : "chase";
+    if (this.type === "riscador" && (this.state === "leap")) return false;
+    this.pushFrom = { ...this.pos }; this.pushDir = { ...dir };
+    this.path = null; this.lureTarget = null;
+    this.set("pushed");
+    this.aware = true; this.lastKnown = { ...ctx.playerPos };
+    return true;
+  }
 
   set(s: CState) { this.state = s; this.stateT = 0; }
 
-  damage(n: number, ctx: CreatureCtx, from?: V3) {
+  damage(n: number, ctx: CreatureCtx, from?: V3, at?: V3) {
     if (!this.alive) return;
     this.hp -= n; this.hitFlash = 0.12;
+    if (at) {
+      // local do impacto para a reação visual (cabeça, corpo, pernas; lado)
+      const h = Math.max(0, Math.min(1, (at.y - this.pos.y) / this.height));
+      const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
+      const side = Math.max(-1, Math.min(1, ((at.x - this.pos.x) * c - (at.z - this.pos.z) * s) / Math.max(0.2, this.radius)));
+      this.flinch = { h, side, t: 0.32, n: this.flinch.n + 1 };
+    }
     if (from && !this.aware) { this.aware = true; this.lastKnown = { ...ctx.playerPos }; if (this.state === "idle" || this.state === "patrol") this.set("chase"); }
-    if (this.hp <= 0) { this.hp = 0; this.set("dead"); this.deadT = 0; ctx.emit({ type: "kill", id: this.id, ctype: this.type, pos: this.center() }); }
+    if (this.hp <= 0) {
+      this.hp = 0; this.set("dead"); this.deadT = 0;
+      if (this.type === "veu") ctx.dissipate(this); // ao cair, o Véu desfaz a nuvem na hora
+      ctx.emit({ type: "kill", id: this.id, ctype: this.type, pos: this.center() });
+    }
   }
 
   canSee(ctx: CreatureCtx, range: number): boolean {
@@ -179,7 +219,10 @@ export class Creature {
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.markT = Math.max(0, this.markT - dt);
     this.slowT = Math.max(0, this.slowT - dt);
+    this.flinch.t = Math.max(0, this.flinch.t - dt);
     if (this.state === "dead") { this.deadT += dt; return; }
+    if (this.state === "pushed") { this.updatePushed(dt, ctx); return; }
+    if (this.type === "veu") { this.updateVeu(dt, ctx); return; }
     if (this.state === "emerging") { if (this.stateT > 0.8) { this.aware = true; this.lastKnown = { ...ctx.playerPos }; this.set(this.type === "estilhaco" ? "reposition" : "chase"); } return; }
 
     // distração: espécies sensíveis atendem ao pulso se não houver ataque anunciado
@@ -195,6 +238,70 @@ export class Creature {
 
     if (this.type === "riscador") this.updateRiscador(dt, ctx);
     else this.updateEstilhaco(dt, ctx);
+  }
+
+  private updatePushed(dt: number, ctx: CreatureCtx) {
+    // desaceleração: percorre FOLE.pushDist em FOLE.pushTime
+    const T = FOLE.pushTime;
+    const k0 = Math.min(1, (this.stateT - dt) / T), k1 = Math.min(1, this.stateT / T);
+    const f = (k: number) => 1 - (1 - k) * (1 - k);
+    const step = (f(k1) - f(k0)) * FOLE.pushDist;
+    const p = { x: this.pos.x + this.pushDir.x * step, y: this.pos.y, z: this.pos.z + this.pushDir.z * step };
+    ctx.world.resolveCylinder(p, this.radius * 0.8, this.pos.y + 0.3, this.pos.y + this.height);
+    if (this.type === "veu") { this.pos.x = p.x; this.pos.z = p.z; }
+    else {
+      const fh = ctx.nav.floorAt(p.x, p.z);
+      if (!Number.isNaN(fh) && Math.abs(fh - this.pos.y) < 0.8) { this.pos.x = p.x; this.pos.z = p.z; this.pos.y = fh; }
+      else if (Number.isNaN(fh)) { /* borda: para */ } else { this.pos.x = p.x; this.pos.z = p.z; }
+    }
+    this.anim += step * 2;
+    if (this.stateT >= T + 0.25) { this.path = null; this.set(this.resume); }
+  }
+
+  /** Véu: patrulha flutuando, incha (1,2 s), solta a nuvem e recupera (2 s). Ignora a baliza. */
+  private updateVeu(dt: number, ctx: CreatureCtx) {
+    const sees = this.perceive(ctx, 18);
+    const floorAt = (x: number, z: number) => { const f = ctx.nav.floorAt(x, z); return Number.isNaN(f) ? this.home.y : f; };
+    const want = floorAt(this.home.x, this.home.z) + this.hover - VEU.height / 2;
+    this.pos.y += (want - this.pos.y) * Math.min(1, dt * 2);
+    this.anim += dt;
+    const d = distXZ(this.pos, ctx.playerPos);
+    const fly = (tx: number, tz: number, sp: number) => {
+      const dx = tx - this.pos.x, dz = tz - this.pos.z, l = Math.hypot(dx, dz);
+      if (l < 0.05) return;
+      const st = Math.min(l, sp * dt);
+      const p = { x: this.pos.x + (dx / l) * st, y: this.pos.y, z: this.pos.z + (dz / l) * st };
+      ctx.world.resolveCylinder(p, this.radius, this.pos.y, this.pos.y + this.height);
+      this.pos.x = p.x; this.pos.z = p.z;
+      this.yaw += angleDiff(this.yaw, Math.atan2(-dx, -dz)) * Math.min(1, dt * 3);
+    };
+    switch (this.state) {
+      case "swell":
+        this.faceTo(ctx.playerPos, dt, 3);
+        if (this.stateT >= VEU.swellTime) {
+          ctx.spawnCloud(this, { x: this.pos.x, y: floorAt(this.pos.x, this.pos.z), z: this.pos.z });
+          this.set("recover");
+        }
+        break;
+      case "recover":
+        if (this.stateT >= VEU.recoverTime) this.set("drift");
+        break;
+      default: {
+        // deriva junto à coleira; com Lia por perto, se aproxima até a borda da coleira
+        let tx = this.home.x + Math.cos(this.anim * 0.4) * Math.min(1.2, this.leash), tz = this.home.z + Math.sin(this.anim * 0.5) * Math.min(1.2, this.leash);
+        if (this.aware && ctx.playerAlive) {
+          const hx = ctx.playerPos.x - this.home.x, hz = ctx.playerPos.z - this.home.z, hl = Math.hypot(hx, hz) || 1;
+          const r = Math.min(this.leash, Math.max(0, hl - 3));
+          tx = this.home.x + (hx / hl) * r; tz = this.home.z + (hz / hl) * r;
+        }
+        fly(tx, tz, this.aware ? VEU.speed : VEU.speed * 0.4);
+        if (this.aware && !ctx.hasCloud(this) && d < VEU.triggerRange && this.stateT > 0.6) {
+          this.set("swell");
+          ctx.emit({ type: "veuSwell", id: this.id, pos: this.center() });
+        }
+        if (!sees && this.aware) { this.lostT += dt; if (this.lostT > ENCOUNTER.forgetTime * 2 && !this.relentless) this.aware = false; }
+      }
+    }
   }
 
   private perceive(ctx: CreatureCtx, range: number): boolean {

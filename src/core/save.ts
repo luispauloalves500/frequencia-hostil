@@ -4,8 +4,8 @@ import type { Difficulty, WeaponId } from "../config";
 export const SAVE_VERSION = 1;
 
 export interface Checkpoint {
-  phase: string; // "F1" | "F2P"
-  point: string; // "F1-A" | "F1-B" | "F2-A"
+  phase: string; // "F1" | "F2" ("F2P" = prévia antiga, migrada para "F2")
+  point: string; // "F1-A" | "F1-B" | "F2-A" | "F2-B"
   hp: number;
   medkits: number;
   weapons: Record<string, AmmoState>;
@@ -17,6 +17,8 @@ export interface Checkpoint {
   playTime: number;
   /** quedas acumuladas no capítulo (opcional para saves antigos) */
   deaths?: number;
+  /** contadores do capítulo até este registro (resultado não zera ao Continuar) */
+  stats?: { kills?: number; shots?: number; hits?: number; pulses?: number; damageTaken?: number; foleShots?: number; foleHits?: number; sopros?: number };
 }
 
 export interface SaveData {
