@@ -30,7 +30,7 @@ function makeMaterials(): Record<string, MatDef> {
     azulejo: { mat: std(TX.texFloorTile(), { roughness: 0.55, roughnessMap: wet(5, 0.55), metalness: 0.12, envMapIntensity: 0.9 }), size: 2 },
     "azulejo-parede": { mat: std(TX.texWallTile(), { roughness: 0.45, envMapIntensity: 0.4 }), size: 4 },
     metal: { mat: std(TX.texMetal(), { metalness: 0.55, roughness: 0.45 }), size: 1 },
-    concreto: { mat: std(TX.texConcrete(), { roughness: 1, roughnessMap: wet(9, 0.4), envMapIntensity: 0.7 }), size: 2 },
+    concreto: { mat: std(TX.texConcrete(), { roughness: 0.85 }), size: 2 },
     madeira: { mat: std(TX.texWood(), { roughness: 0.75 }), size: 1.5 },
     grade: { mat: grate, size: 1 },
     vidro: { mat: new THREE.MeshStandardMaterial({ color: 0x6a8ca8, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.9, depthWrite: false }), size: 1 },
