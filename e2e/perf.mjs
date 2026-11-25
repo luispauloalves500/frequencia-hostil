@@ -12,7 +12,7 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const OUT = ROOT + "release/perf/"; const SH = ROOT + "release/screenshots/perf/";
 mkdirSync(OUT, { recursive: true }); mkdirSync(SH, { recursive: true });
 
-const srv = await startServer();
+const srv = await startServer(Number(process.env.PORT ?? 4391));
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--enable-precise-memory-info", "--js-flags=--expose-gc"] });
 const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
 const page = await ctx.newPage();
@@ -105,6 +105,25 @@ out.scenes.praca = await measure("praca");
 // embarque
 await place({ x: 90, y: 0, z: 4.7 }, { x: 100, y: 1.5, z: 4.7 });
 out.scenes.embarque = await measure("embarque");
+
+// F2 • Mercado Afogado (cenas novas da v0.4; não existem nos rótulos antigos)
+if (process.env.F2 !== "0") {
+  await page.evaluate(() => { window.__fh.setSpeed(1); window.__fh.start("F2"); });
+  await waitFor(page, () => window.__fh.sim?.level.id === "F2" && (window.__fh.state === "playing" || window.__fh.state === "paused"), null, 60000, "F2");
+  await page.evaluate(() => { const g = window.__fh.game; g.state = "playing"; g.show(null); g.sim.damageMul = 0; });
+  out.f2LoadMs = Math.round(await page.evaluate(() => window.__fhLastLoadMs));
+  await page.evaluate(() => window.__fh.setSpeed(0));
+  await place({ x: 3, y: 0, z: 1 }, { x: 20, y: 1.2, z: 1 });
+  out.scenes.f2Peixaria = await measure("f2-peixaria");
+  await place({ x: 36, y: 0, z: 6 }, { x: 52, y: 1.4, z: -4 });
+  out.scenes.f2Praca = await measure("f2-praca");
+  // névoa do Véu: uma nuvem completa perto da câmera
+  await page.evaluate(() => { const s = window.__fh.sim; const v = s.creatures.find((c) => c.type === "veu"); if (v) { s.spawnCloud(v, { x: 26, y: 0, z: 0 }); } });
+  await place({ x: 20, y: 0, z: 0.5 }, { x: 30, y: 1.2, z: 0 });
+  out.scenes.f2Nevoa = await measure("f2-nevoa");
+  await place({ x: 80, y: 0, z: 2 }, { x: 100, y: 2, z: 2 });
+  out.scenes.f2Boia = await measure("f2-boia");
+}
 
 // pacote
 const assets = ROOT + "dist/assets/";
