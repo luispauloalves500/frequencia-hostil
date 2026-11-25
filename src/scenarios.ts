@@ -242,3 +242,155 @@ export function* soundDetour(r: PlanRunner): Plan {
   a.fight = true;
   void ar;
 }
+
+// ---------------------------------------------------------------- F2
+import { F2Script, F2_POINTS } from "./levels/f2";
+const f2 = (s: Sim) => s.script as unknown as F2Script;
+
+/** Pega o Fole na bancada sob a placa de gelo. */
+export function* f2TakeFole(r: PlanRunner): Plan {
+  const s = r.sim, a = r.auto;
+  a.fight = false; // o Véu da passagem fica para a demonstração do Fole
+  yield* r.goto({ x: 19.6, y: 0, z: 4.3 });
+  a.aimOverride = F2_POINTS.fole; yield; yield;
+  a.push({ interact: true }); yield; a.aimOverride = null;
+  yield* r.until(() => !!s.flags.fole, 2, "Fole");
+  r.data.foleMag = s.arsenal.ammo("fole")?.mag;
+  r.say(`pegou o Fole (${s.arsenal.ammo("fole")?.mag}/${s.arsenal.ammo("fole")?.reserve})`);
+  a.fight = true;
+}
+
+/** Por baixo, com o Fole: espera a névoa, sopra, atravessa a passagem e derruba o Véu. */
+export function* f2LowPassage(r: PlanRunner): Plan {
+  const s = r.sim, a = r.auto;
+  a.weapon = "fole"; a.fight = false;
+  yield* r.goto({ x: 21, y: 0, z: 0 });
+  const veu = s.creatures.find((c) => c.tag === "veu-passagem")!;
+  yield* r.until(() => s.clouds.length > 0, 12, "nuvem do Véu");
+  r.data.cloudAt = s.t;
+  yield* r.wait(0.7);
+  r.data.densityBefore = s.cloudDensity({ x: 26, y: 1, z: 0 });
+  a.aimOverride = veu.center(); yield; yield;
+  a.push({ altPressed: true }); yield; yield;
+  a.aimOverride = null;
+  r.data.densityAfterSopro = s.cloudDensity({ x: 26, y: 1, z: 0 });
+  r.say(`sopro: névoa ${r.data.densityBefore.toFixed(2)} → ${r.data.densityAfterSopro.toFixed(2)}`);
+  a.fight = true;
+  // atravessa pela passagem baixa enquanto a névoa está afastada, derrubando o Véu com o leque
+  a.moveTo({ x: 31.5, y: 0, z: 0 }, true);
+  const end = s.t + 25;
+  while (veu.alive || !a.arrived(0.9)) {
+    if (s.t > end) throw new Error(`passagem: véu ${veu.state} hp ${veu.hp} lia ${s.player.pos.x.toFixed(1)},${s.player.pos.z.toFixed(1)}`);
+    if (!s.alive) throw new Error("morreu na passagem");
+    if (!veu.alive && !a.goal) a.moveTo({ x: 31.5, y: 0, z: 0 });
+    yield;
+  }
+  r.data.veuKilledBy = s.arsenal.current;
+  r.data.lowRoute = !f2(s).routeHigh;
+  r.say(`passou por baixo; Véu derrubado (${r.data.veuKilledBy})`);
+  a.weapon = null;
+}
+
+/** Por cima, com a Agulha: escada, passarela de serviço, ponte e toldo. */
+export function* f2HighRoute(r: PlanRunner): Plan {
+  const s = r.sim, a = r.auto;
+  a.weapon = "agulha";
+  a.fight = false;
+  yield* r.goto({ x: 4.8, y: 0, z: -0.8 });
+  yield* r.goto({ x: 4.8, y: 2.4, z: -7 });
+  r.say("subiu a escada da peixaria");
+  yield* r.goto({ x: 22.5, y: 2.4, z: -7 });
+  r.data.gotDarts = s.pickups.find((p) => p.id === "dardos-passarela-f2")?.taken;
+  // marca o Véu de cima (se estiver à vista) e segue
+  const veu = s.creatures.find((c) => c.tag === "veu-passagem");
+  yield* r.goto({ x: 33, y: 2.4, z: -7 });
+  if (veu?.alive && !s.world.blocked(s.player.eyePos(), veu.center(), ["solid", "grate", "ceiling"])) {
+    a.aimOverride = veu.center(); yield; yield; a.push({ altPressed: true }); yield; yield; a.aimOverride = null;
+    r.data.markedVeu = veu.markT > 0;
+  }
+  yield* r.goto({ x: 40, y: 2.4, z: -3 });
+  r.data.routeHigh = f2(s).routeHigh;
+  r.say(`atravessou por cima (toldo): ${r.data.routeHigh}`);
+  a.fight = true;
+}
+
+/** Banca azul: luta, registro da praça, corredor de gelo e abrigo F2-B. */
+export function* f2Praca(r: PlanRunner): Plan {
+  const s = r.sim, a = r.auto;
+  if (s.player.pos.y > 1.5) yield* r.goto({ x: 45, y: 0, z: 4.5 });
+  else yield* r.goto({ x: 38, y: 0, z: 2 });
+  const ar = f2(s).arena!;
+  yield* r.until(() => ar.state !== "idle", 4, "luta da praça");
+  const end = s.t + 150;
+  while (ar.state !== "cleared") {
+    if (s.t > end) throw new Error("praça não liberou: " + ar.blockReason());
+    if (!s.alive) throw new Error("morreu na praça");
+    const hostile = s.creatures.filter((c) => c.alive && c.state !== "emerging" && c.pos.x > 29);
+    if (!a.target() && hostile.length) a.moveTo(hostile[0].pos); else if (!hostile.length) a.moveTo({ x: 44, y: 0, z: 3 }); else a.stop();
+    if (s.hp < 50 && s.medkits > 0 && s.healT < 0) a.push({ heal: true });
+    yield;
+  }
+  r.data.pracaSpawns = ar.spawnLog.map((x) => `${x.type}@${x.door}`);
+  r.say(`praça limpa (vida ${Math.ceil(s.hp)})`);
+  yield* r.goto({ x: 54.3, y: 0, z: -4.5 });
+  a.aimOverride = F2_POINTS.registro1; yield; yield;
+  a.push({ interact: true }); yield; a.aimOverride = null;
+  yield* r.until(() => !!s.flags.registro1, 2, "registro 1");
+  yield* r.wait(1.2);
+  r.say("registro da praça aberto");
+  yield* r.goto({ x: 62, y: 0, z: 0 });
+  yield* r.goto({ x: 72.5, y: 0, z: 2.6 });
+  yield* r.until(() => !!s.flags.abrigoB, 2, "abrigo F2-B");
+  r.say(`abrigo F2-B (vida ${Math.ceil(s.hp)})`);
+}
+
+/** Casa da boia: registro 2 na plataforma, abertura de 8 s e saída com um comum vivo. */
+export function* f2Boia(r: PlanRunner, leaveAlive = true): Plan {
+  const s = r.sim, a = r.auto, sc = f2(s);
+  yield* r.goto({ x: 75, y: 0, z: 0 });
+  yield* r.goto({ x: 79.2, y: 0, z: 0 });
+  yield* r.until(() => sc.arena2?.state !== "idle", 3, "luta da casa da boia");
+  // sobe direto ao registro; com leaveAlive, sem parar para lutar (fuga com comuns vivos)
+  a.fight = !leaveAlive;
+  yield* r.goto({ x: 79.2, y: 2.4, z: -7.6 }, { timeout: 60 });
+  yield* r.goto({ x: 99.4, y: 2.4, z: -8.4 }, { timeout: 60 });
+  a.fight = false;
+  a.aimOverride = F2_POINTS.registro2; yield; yield;
+  a.push({ interact: true }); yield; a.aimOverride = null;
+  a.fight = !leaveAlive;
+  yield* r.until(() => sc.gateT >= 0, 2, "registro 2");
+  r.data.objectiveDuringGate = s.objective;
+  r.say("registro 2: comporta abrindo");
+  const t0 = s.t;
+  // defende a plataforma durante a abertura, deixando ao menos um comum vivo para a fuga
+  const gEnd = s.t + 12;
+  while (sc.gateT < F2_POINTS.gateTime) {
+    if (!s.alive) throw new Error("morreu durante a abertura da comporta");
+    if (s.t > gEnd) throw new Error("comporta não abriu");
+    const alive = s.creatures.filter((c) => c.alive).length + sc.arena2!.pending.length;
+    a.fight = !leaveAlive || alive > 1;
+    if (s.hp < 50 && s.medkits > 0 && s.healT < 0) a.push({ heal: true });
+    yield;
+  }
+  r.data.gateSecs = +(s.t - t0).toFixed(2);
+  r.data.segments = sc.segmentsLit;
+  if (!leaveAlive) { yield* r.until(() => sc.arena2!.pending.length === 0, 20, "entradas"); yield* r.clear(40, 120, { x: 90, y: 0, z: 0 }); }
+  a.fight = false;
+  if (s.hp < 60 && s.medkits > 0) { a.push({ heal: true }); yield* r.wait(1.2); }
+  r.data.aliveBeforeExit = s.creatures.filter((c) => c.alive).length;
+  yield* r.goto({ x: 79.2, y: 2.4, z: -6.6 }, { sprint: true, timeout: 40 });
+  yield* r.goto({ x: 79.2, y: 0, z: -0.6 }, { sprint: true, timeout: 20 });
+  yield* r.goto({ x: 101.5, y: 0, z: 4 }, { sprint: true, timeout: 30 });
+  a.moveTo({ x: 110, y: 0, z: 4 }, true);
+  yield* r.until(() => s.done, 20, "batente da comporta");
+  r.data.aliveAtExit = sc.aliveAtExit;
+  r.say(`cruzou o batente com ${sc.aliveAtExit} comum(ns) vivo(s)`);
+}
+
+/** F2 inteira por uma das rotas. */
+export function* f2Full(r: PlanRunner, route: "baixo" | "cima"): Plan {
+  yield* f2TakeFole(r);
+  if (route === "baixo") yield* f2LowPassage(r); else yield* f2HighRoute(r);
+  yield* f2Praca(r);
+  yield* f2Boia(r);
+}

@@ -180,9 +180,18 @@ export function buildBeaconDevice(): { root: THREE.Group; light: THREE.Mesh } {
   return { root, light };
 }
 
-export function buildPickup(kind: "dardos" | "curativo"): THREE.Group {
+export function buildPickup(kind: "dardos" | "curativo" | "fole"): THREE.Group {
   const g = new THREE.Group();
-  if (kind === "dardos") {
+  if (kind === "fole") {
+    // caixa de cartuchos do Fole: lata âmbar com seis furos no tampo
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.26, 0.34), new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 0.55, metalness: 0.5 }));
+    box.position.y = 0.14;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.48, 0.28, 0.36)), new THREE.LineBasicMaterial({ color: 0xffb050 }));
+    edges.position.y = 0.14;
+    const icon = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.14), new THREE.MeshBasicMaterial({ map: texSign("◆◆ FOLE", "#ffc070", 512, 128), transparent: true }));
+    icon.position.set(0, 0.16, 0.175);
+    g.add(box, edges, icon);
+  } else if (kind === "dardos") {
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 0.32), new THREE.MeshStandardMaterial({ color: 0x2c4650, roughness: 0.6, metalness: 0.4 }));
     box.position.y = 0.14;
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.52, 0.3, 0.34)), new THREE.LineBasicMaterial({ color: 0x5ff0ff }));
@@ -197,7 +206,7 @@ export function buildPickup(kind: "dardos" | "curativo"): THREE.Group {
     band.rotation.z = Math.PI / 2; band.position.y = 0.14;
     g.add(body, band);
   }
-  const halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 24), new THREE.MeshBasicMaterial({ color: kind === "dardos" ? 0x5ff0ff : 0xffa23a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false }));
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 24), new THREE.MeshBasicMaterial({ color: kind === "dardos" ? 0x5ff0ff : kind === "fole" ? 0xffc070 : 0xffa23a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false }));
   halo.rotation.x = -Math.PI / 2; halo.position.y = 0.02;
   g.add(halo);
   g.userData.halo = halo;

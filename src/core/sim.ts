@@ -319,7 +319,13 @@ export class Sim {
     if (this.alive) {
       // trocar arma
       if (inp.slot) {
-        const id = (Object.keys(WEAPONS) as WeaponId[]).find((k) => WEAPONS[k].slot === inp.slot);
+        let id: WeaponId | undefined;
+        if (inp.slot > 0) id = (Object.keys(WEAPONS) as WeaponId[]).find((k) => WEAPONS[k].slot === inp.slot);
+        else {
+          // roda do mouse: percorre as armas que Lia tem, na ordem dos atalhos
+          const own = (Object.keys(WEAPONS) as WeaponId[]).filter((k) => this.arsenal.owned.has(k));
+          if (own.length > 1) { const i = own.indexOf(this.arsenal.current!); id = own[(i + (inp.slot === -1 ? 1 : -1) + own.length) % own.length]; }
+        }
         if (id && this.arsenal.switchTo(id)) this.emit({ type: "switch", weapon: id });
       }
       // movimento

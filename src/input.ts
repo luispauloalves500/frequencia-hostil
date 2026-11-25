@@ -81,7 +81,7 @@ export class Input {
     f.interact = this.edges.has("KeyE");
     f.heal = this.edges.has("KeyF");
     for (let i = 1; i <= 4; i++) if (this.edges.has(`Digit${i}`)) f.slot = i;
-    if (this.wheel) { f.slot = -this.wheel; this.wheel = 0; }
+    if (this.wheel) { f.slot = this.wheel > 0 ? -1 : -2; this.wheel = 0; } // -1 próxima, -2 anterior
     this.edges.clear(); this.btnEdges.clear();
     return f;
   }

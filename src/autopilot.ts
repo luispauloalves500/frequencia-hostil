@@ -1,4 +1,4 @@
-import { DT } from "./config";
+import { DT, WEAPONS, type WeaponId } from "./config";
 import type { Creature } from "./core/creatures";
 import { angleDiff, yawTo, type V3 } from "./core/math";
 import { emptyFrame, type FrameInput, type Sim } from "./core/sim";
@@ -23,6 +23,10 @@ export class Autopilot {
   aimOverride: V3 | null = null;
   ignorePassive = true;
   accuracy = 1; // 1 = mira no centro; < 1 erra de propósito
+  /** arma preferida (troca pela tecla numérica, como um jogador); sem munição, troca para a que tiver */
+  weapon: WeaponId | null = null;
+  /** Fole: só dispara de perto (o leque abre) */
+  foleRange = 7;
   constructor(public sim: Sim) {}
 
   moveTo(p: V3, sprint = false) { this.goal = { ...p }; this.path = null; this.repath = 0; this.sprint = sprint; }
@@ -72,12 +76,23 @@ export class Autopilot {
       if (this.stuckT > 0.6) { f.jump = true; this.path = null; this.stuckT = 0; }
     }
     const tgt = this.fight ? this.target() : null;
+    // troca de arma: preferência do roteiro ou a que ainda tem munição
+    const ars = s.arsenal;
+    if (ars.state !== "switching" && ars.owned.size > 1) {
+      const has = (id: WeaponId) => { const a = ars.owned.get(id); return !!a && a.mag + a.reserve > 0; };
+      let want: WeaponId | null = this.weapon && ars.owned.has(this.weapon) && has(this.weapon) ? this.weapon : null;
+      if (!want && ars.current && !has(ars.current)) want = ([...ars.owned.keys()] as WeaponId[]).find(has) ?? null;
+      if (!want && ars.current === "fole" && tgt && Math.hypot(tgt.pos.x - p.pos.x, tgt.pos.z - p.pos.z) > this.foleRange + 4 && has("agulha") && !this.weapon) want = "agulha";
+      if (want && want !== ars.current) f.slot = WEAPONS[want].slot;
+    }
     if (tgt) {
       const aim = { ...this.aimPoint };
       if (this.accuracy < 1) { aim.x += (1 - this.accuracy) * 2; aim.y += (1 - this.accuracy) * 1.5; }
       this.aimAt(aim);
       const a = s.arsenal.ammo();
-      if (a && a.mag > 0) f.fireHeld = true;
+      const far = s.arsenal.current === "fole" && Math.hypot(tgt.pos.x - p.pos.x, tgt.pos.z - p.pos.z) > this.foleRange;
+      if (far && this.goal === null) this.moveTo(tgt.pos);
+      if (a && a.mag > 0 && !far) f.fireHeld = true;
       else if (a && a.reserve > 0) f.reload = true;
       // esquiva lateral contra salto ou linha de luz
       this.strafeT -= DT;
