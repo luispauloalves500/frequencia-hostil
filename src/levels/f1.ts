@@ -137,6 +137,10 @@ const LIGHTS: LightDef[] = [
   { pos: { x: 93.5, y: 3.1, z: 4.7 }, color: 0xe8f4ff, intensity: 0, distance: 7, id: "emb-2" },
   { pos: { x: 96.5, y: 3.1, z: 4.7 }, color: 0xe8f4ff, intensity: 0, distance: 7, id: "emb-3" },
   { pos: { x: 99.3, y: 3.1, z: 4.7 }, color: 0x9fe8ff, intensity: 0, distance: 7, id: "emb-4" },
+  // v0.4: lâmpadas pendentes do saguão e do guichê (luz quente e fria se alternando no piso molhado)
+  { pos: { x: 28, y: 4.0, z: 3 }, color: 0xffd8a0, intensity: 9, distance: 8 },
+  { pos: { x: 44, y: 4.0, z: -2.5 }, color: 0xd8f0ff, intensity: 8, distance: 8, flicker: 0.12 },
+  { pos: { x: 17, y: 2.75, z: 0 }, color: 0x7fc8e8, intensity: 5, distance: 6, flicker: 0.3 },
 ];
 
 const DECOR: Decor[] = [
@@ -167,6 +171,41 @@ const DECOR: Decor[] = [
   { kind: "ferry", pos: { x: 50, y: -1.2, z: -42 } },
   { kind: "dock", pos: { x: 60, y: -0.6, z: -20 } },
   { kind: "arrow", pos: { x: 61.8, y: 2.4, z: 5 }, rot: EAST },
+  // v0.4 • acabamento: piso molhado e sujo, cabos, cartazes, lixo (estático, mesclado por material)
+  { kind: "puddle", pos: { x: 8, y: 0, z: 2 }, size: { x: 1.8, y: 0, z: 1.2 } },
+  { kind: "puddle", pos: { x: 23, y: 0, z: 0.5 }, size: { x: 1.4, y: 0, z: 0.9 } },
+  { kind: "puddle", pos: { x: 30, y: 0, z: 4.5 }, size: { x: 2.8, y: 0, z: 1.6 } },
+  { kind: "puddle", pos: { x: 45, y: 0, z: 2.5 }, size: { x: 2.2, y: 0, z: 1.4 } },
+  { kind: "puddle", pos: { x: 52, y: 0, z: -3 }, size: { x: 1.6, y: 0, z: 2.2 } },
+  { kind: "puddle", pos: { x: 66, y: 0, z: -4 }, size: { x: 3.4, y: 0, z: 2.2 } },
+  { kind: "puddle", pos: { x: 78, y: 0, z: 3 }, size: { x: 2.8, y: 0, z: 2 } },
+  { kind: "puddle", pos: { x: 84, y: 0, z: -5 }, size: { x: 2.2, y: 0, z: 1.5 } },
+  { kind: "puddle", pos: { x: 94, y: 0, z: 5.6 }, size: { x: 1.3, y: 0, z: 0.6 } },
+  { kind: "grime", pos: { x: 3, y: 0, z: -3 }, size: { x: 2.2, y: 0, z: 1.5 } },
+  { kind: "grime", pos: { x: 15, y: 0, z: 0.8 }, size: { x: 3, y: 0, z: 1 } },
+  { kind: "grime", pos: { x: 36, y: 0, z: -5 }, size: { x: 3.2, y: 0, z: 2 } },
+  { kind: "grime", pos: { x: 42, y: 0, z: 6 }, size: { x: 2.6, y: 0, z: 1.5 } },
+  { kind: "grime", pos: { x: 60, y: 0, z: 6.6 }, size: { x: 1.6, y: 0, z: 1 } },
+  { kind: "grime", pos: { x: 72, y: 0, z: 7 }, size: { x: 3.2, y: 0, z: 2 } },
+  { kind: "grime", pos: { x: 97, y: 0, z: 3.5 }, size: { x: 2, y: 0, z: 0.8 } },
+  { kind: "cables", pos: { x: 32, y: 4.85, z: -6.5 }, size: { x: 15, y: 0, z: 0 } },
+  { kind: "cables", pos: { x: 48, y: 4.85, z: 7.6 }, size: { x: 15, y: 0, z: 0 } },
+  { kind: "cables", pos: { x: 18, y: 2.88, z: 1.1 }, size: { x: 11, y: 0, z: 0 } },
+  { kind: "pipes", pos: { x: 32, y: 4.2, z: -6.85 }, size: { x: 15, y: 0, z: 0 } },
+  { kind: "hangLamp", pos: { x: 28, y: 4.1, z: 3 } },
+  { kind: "hangLamp", pos: { x: 44, y: 4.1, z: -2.5 } },
+  { kind: "poster", pos: { x: 27, y: 1.8, z: -6.73 }, text: "PROCURAM-SE BALIZEIROS", color: 0xe8d9b0 },
+  { kind: "poster", pos: { x: 44, y: 1.7, z: -6.73 }, text: "BALSA • 04h30", color: 0xffb070 },
+  { kind: "poster", pos: { x: 36, y: 1.7, z: 8.73 }, rot: Math.PI, text: "SAL • PEIXE • GELO", color: 0x9fd8ff },
+  { kind: "poster", pos: { x: 16, y: 1.6, z: -1.38 }, text: "NÃO CORRA", color: 0xff8a6a },
+  { kind: "trash", pos: { x: 38, y: 0, z: 7.6 } },
+  { kind: "trash", pos: { x: 46, y: 0, z: -6 } },
+  { kind: "trash", pos: { x: 70, y: 0, z: -7 } },
+  { kind: "rubble", pos: { x: 49.5, y: 0, z: -1.2 } },
+  { kind: "luggage", pos: { x: 26, y: 0, z: -6.3 } },
+  { kind: "luggage", pos: { x: 89.5, y: 0, z: 6.1 }, rot: Math.PI },
+  { kind: "drip", pos: { x: 45, y: 4.9, z: 2.5 } },
+  { kind: "drip", pos: { x: 30, y: 4.9, z: 4.5 } },
 ];
 
 export const F1: LevelDef = {

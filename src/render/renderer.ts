@@ -255,7 +255,7 @@ export class Renderer {
     this.vmScene.add(this.vmCamera);
     this.vmCamera.add(this.vmAgulha.root, this.vmFole.root);
     this.vmAgulha.root.position.set(0.17, -0.17, -0.34);
-    this.vmFole.root.position.set(0.17, -0.19, -0.34); this.vmFole.root.visible = false;
+    this.vmFole.root.position.set(0.17, -0.19, -0.34); this.vmFole.root.scale.setScalar(0.78); this.vmFole.root.visible = false;
     for (const v of [this.vmAgulha, this.vmFole]) { v.mag.userData.p0 = v.mag.position.clone(); if (v.hand) v.hand.userData.p0 = v.hand.position.clone(); }
     this.vmCamera.add(this.vmBeacon.root);
     // baliza menor na mão esquerda: não cobre a mira nem a metade esquerda da tela
@@ -1034,7 +1034,7 @@ export class Renderer {
     for (const h of this.hitFlashes) if (h.c === c.id) { flash = Math.max(flash, h.t / 0.1); }
     // veias pulsando; um acerto acende o cristal inteiro por um instante
     const prepGlow = c.state === "windup" || c.state === "swell" || (c.state === "aim" && c.stateT >= 0) ? 1 : 0;
-    const pulse = 0.85 + Math.sin(t * 2.2 + c.pos.x) * 0.25 + prepGlow * (0.8 + Math.sin(t * 25) * 0.3);
+    const pulse = 1.35 + Math.sin(t * 2.2 + c.pos.x) * 0.35 + prepGlow * (0.8 + Math.sin(t * 25) * 0.3);
     for (const m of rig.mats) {
       m.emissive.copy(rig.veinColor).lerp(WHITE, flash * 0.85);
       m.emissiveIntensity = pulse + flash * 3.5;
@@ -1178,7 +1178,7 @@ export class Renderer {
     const bobX = Math.cos(this.bobT * 0.5) * 0.012 * Math.min(1, speed / 5.5);
     const rc = this.recoil;
     // Agulha: coice curto e seco; Fole: coice longo que joga o cano para cima e para trás
-    let x = 0.17 + bobX, y = (fole ? -0.19 : -0.17) + bob - (fole ? rc * 0.02 : 0), z = -0.34 + rc * (fole ? 0.09 : 0.045);
+    let x = (fole ? 0.16 : 0.17) + bobX, y = (fole ? -0.18 : -0.17) + bob - (fole ? rc * 0.02 : 0), z = (fole ? -0.36 : -0.34) + rc * (fole ? 0.09 : 0.045);
     let rx = rc * (fole ? 0.32 : 0.09), ry = 0, rz = fole ? -rc * 0.06 : 0;
     if (p.sprinting) { x += 0.04; y -= 0.05; ry = 0.6; rz = 0.25; rx = -0.15; }
     if (p.sliding) { rz = -0.3; }

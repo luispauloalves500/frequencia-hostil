@@ -30,7 +30,7 @@ export interface CreatureRig {
 /** Cristal vivo: casca facetada translúcida com veias de luz pulsando por baixo. */
 function crystal(color: number, vein: number): THREE.MeshStandardMaterial {
   const veins = texVeins();
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.16, metalness: 0.08, flatShading: true, emissive: vein, emissiveMap: veins, emissiveIntensity: 1.1, envMapIntensity: 1.6 });
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.2, metalness: 0.15, flatShading: true, emissive: vein, emissiveMap: veins, emissiveIntensity: 1.4, envMapIntensity: 1.0 });
 }
 
 function leg(len1: number, len2: number, mat: THREE.Material, joint?: THREE.Material): THREE.Group {
@@ -67,7 +67,7 @@ function collectPieces(body: THREE.Object3D, legs: THREE.Object3D[]): THREE.Mesh
 /** Riscador: quadrúpede de cristal, carapaça facetada com espinhos translúcidos e veias ciano. */
 export function buildRiscador(): CreatureRig {
   const root = new THREE.Group();
-  const mat = crystal(0xd8e2e4, 0x3fd8ff);
+  const mat = crystal(0x7d97a2, 0x3fd8ff);
   const dmat = new THREE.MeshStandardMaterial({ color: 0x2c3236, roughness: 0.35, metalness: 0.3, flatShading: true });
   const body = new THREE.Group();
   body.position.y = 0.62;
@@ -115,7 +115,7 @@ export function buildRiscador(): CreatureRig {
 /** Estilhaço: alto, coroa de placas de cristal que abre e mostra a linha de luz; veias âmbar. */
 export function buildEstilhaco(): CreatureRig {
   const root = new THREE.Group();
-  const mat = crystal(0xe2d8c4, 0xff8a3a);
+  const mat = crystal(0xa08c78, 0xff8a3a);
   const dmat = new THREE.MeshStandardMaterial({ color: 0x302a26, roughness: 0.4, metalness: 0.3, flatShading: true });
   const body = new THREE.Group();
   body.position.y = 1.15;
@@ -192,9 +192,9 @@ export function buildVeu(): CreatureRig {
 /** Agulha em primeira pessoa: trilho, aletas de dissipação, bobinas, mira com ponto e indicador de dardos. */
 export function buildAgulha(): WeaponView {
   const root = new THREE.Group();
-  const body = new THREE.MeshStandardMaterial({ color: 0x2e3438, roughness: 0.42, metalness: 0.65 });
+  const body = new THREE.MeshStandardMaterial({ color: 0x4c565e, roughness: 0.38, metalness: 0.6 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x15191c, roughness: 0.6, metalness: 0.5 });
-  const trim = new THREE.MeshStandardMaterial({ color: 0x5e5446, roughness: 0.55, metalness: 0.55 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x8a7656, roughness: 0.45, metalness: 0.7 });
   const grip = new THREE.MeshStandardMaterial({ color: 0x1d1f20, roughness: 0.92 });
   const glow = new THREE.MeshStandardMaterial({ color: 0x173238, emissive: 0x39d8ff, emissiveIntensity: 1.6, roughness: 0.2 });
   const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {

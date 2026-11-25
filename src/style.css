@@ -93,4 +93,4 @@ h1::after { content: attr(data-text); position: absolute; left: 3px; top: 0; col
 #fogveil { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(150,180,172,0.55) 0%, rgba(120,150,145,0.85) 60%, rgba(90,115,112,0.95) 100%); mix-blend-mode: normal; }
 #wSlots { font-size: 0.62em; letter-spacing: 0.18em; color: #6f8890; margin-bottom: 2px; }
 #wSlots b { color: var(--cyan); font-weight: 600; }
-#wSlots i { font-style: normal; color: #3f5258; }
+#wSlots i { font-style: normal; color: #7f98a0; }
