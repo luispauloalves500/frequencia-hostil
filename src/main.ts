@@ -10,6 +10,7 @@ import { Autopilot } from "./autopilot";
 import { F1 } from "./levels/f1";
 import { makeLab, type LabStage } from "./levels/lab";
 import { F2 } from "./levels/f2";
+import { defaultF2Entry as f2Entry, f2EntryFromF1, migrateCheckpoint } from "./core/progress";
 import type { LevelDef } from "./levels/types";
 import { angleDiff, yawTo } from "./core/math";
 import * as UI from "./ui/dom";
@@ -31,11 +32,6 @@ function levelById(id: string): LevelDef {
   if (id === "F2" || id === "F2P") return F2; // "F2P" = registro da prévia antiga
   if (id === "LAB") return makeLab(LAB ?? "d02");
   return F1;
-}
-
-/** Registro de entrada da F2 para quem não tem o da F1 (repetição): arsenal padrão de fim da F1. */
-function f2Entry(difficulty: Difficulty): Checkpoint {
-  return { phase: "F2", point: "F2-A", hp: 100, medkits: 1, weapons: { agulha: { mag: WEAPONS.agulha.mag, reserve: 72 } }, current: "agulha", hasBeacon: true, objective: "", flags: {}, difficulty, playTime: 0, deaths: 0 };
 }
 
 class Game {
@@ -200,7 +196,7 @@ class Game {
   loadSave(): SaveData | null {
     const s = this.store.load();
     if (s && s.checkpoint.phase === "F2P") {
-      s.checkpoint = { ...s.checkpoint, phase: "F2", point: "F2-A", flags: {}, objective: "", playTime: 0, deaths: 0, stats: undefined };
+      s.checkpoint = migrateCheckpoint(s.checkpoint);
       try { this.store.save({ checkpoint: s.checkpoint, completed: s.completed, unlocked: s.unlocked }); } catch { /* segue só nesta sessão */ }
     }
     return s;
@@ -321,7 +317,7 @@ class Game {
     const sim = this.sim!;
     // registro de entrada da F2: leva vida, curativos, arsenal e baliza da F1; tempo e contadores do capítulo recomeçam
     sim.applyShelterFloor();
-    const exitCp: Checkpoint = { ...sim.checkpoint("F2-A"), phase: "F2", objective: "", flags: {}, playTime: 0, deaths: 0, stats: undefined };
+    const exitCp: Checkpoint = f2EntryFromF1(sim.checkpoint("F2-A"));
     this.persist(exitCp, { completed: ["F1"], unlocked: ["F1", "F2"] });
     this.state = "result";
     this.input.releaseLock();

@@ -115,7 +115,17 @@ export class AudioEngine {
     this.events.push(e.type);
     if (this.events.length > 200) this.events.shift();
     switch (e.type) {
-      case "shot": {
+      case "shot": if (e.weapon === "fole") {
+        // Fole: estouro grave de ar comprimido + chiado dos fragmentos
+        const o = this.out(undefined, 0.7);
+        this.noise(o, t, 0.25, "lowpass", 900, 0.8, 0.9, 0.003, 300);
+        this.tone(o, t, 0.18, "sine", 110, 40, 0.7);
+        this.noise(o, t + 0.01, 0.12, "bandpass", 2600, 1.5, 0.35);
+        this.noise(o, t + 0.28, 0.18, "bandpass", 700, 2, 0.25, 0.03); // fole enchendo de novo
+        for (const h of (e.hits ?? []) as { killed: boolean }[]) this.ceramic(this.out(e.to, 0.6), t + 0.03, h.killed ? 1900 : 2500, 0.3, 0.2);
+        if (e.killed) { const k = this.out(e.to, 0.9); this.noise(k, t + 0.03, 0.5, "bandpass", 4200, 1.2, 0.8); for (let i = 0; i < 5; i++) this.ceramic(k, t + 0.04 + i * 0.035, 1800 + Math.random() * 2400, 0.25, 0.25); }
+        break;
+      } else {
         const o = this.out(undefined, 0.5);
         this.tone(o, t, 0.09, "sawtooth", 2400, 500, 0.35);
         this.tone(o, t, 0.05, "square", 4800, 2200, 0.12);
@@ -226,6 +236,14 @@ export class AudioEngine {
       case "arenaStart": this.intensity = 2; break;
       case "arenaCleared": this.intensity = 0; break;
       case "levelComplete": { const o = this.out(undefined, 0.6); [392, 523, 659, 784].forEach((f, i) => this.tone(o, t + i * 0.18, 0.6, "triangle", f, f, 0.2)); break; }
+      case "sopro": { const o = this.out(undefined, 0.6); this.noise(o, t, 0.7, "bandpass", 500, 0.7, 0.8, 0.04, 1800); this.noise(o, t + 0.05, 0.5, "highpass", 2500, 0.5, 0.25, 0.05); break; }
+      case "veuSwell": { const o = this.out(e.pos, 0.8, 4); this.tone(o, t, 1.1, "sine", 180, 360, 0.25, 0.3); this.noise(o, t, 1.1, "bandpass", 800, 3, 0.25, 0.4, 1600); break; }
+      case "cloud": { const o = this.out(e.pos, 0.9, 5); this.noise(o, t, 1.4, "lowpass", 1200, 0.7, 0.6, 0.02, 300); break; }
+      case "cloudGone": { const o = this.out(undefined, 0.3); this.noise(o, t, 0.6, "highpass", 3000, 0.7, 0.2, 0.05); break; }
+      case "valve": { const o = this.out(e.pos, 1.0, 3); for (let i = 0; i < 4; i++) this.noise(o, t + i * 0.22, 0.16, "bandpass", 500 + i * 60, 4, 0.6); this.tone(o, t + 0.95, 0.5, "sine", 70, 50, 0.4, 0.05); break; }
+      case "gateStart": { const o = this.out(undefined, 0.5); this.tone(o, t, 0.25, "square", 440, 440, 0.12); this.noise(o, t, 2.5, "lowpass", 180, 1, 0.5, 0.4, 260); break; }
+      case "gateSegment": { const o = this.out(undefined, 0.5, 2, false); const f = 523 + (e.n - 1) * 131; this.tone(o, t, 0.18, "triangle", f, f, 0.25); this.noise(o, t, 0.4, "lowpass", 220, 1, 0.4); break; }
+      case "gateOpen": { const o = this.out(undefined, 0.7); this.tone(o, t, 0.5, "triangle", 784, 784, 0.2); this.tone(o, t + 0.15, 0.6, "triangle", 1046, 1046, 0.2); this.noise(o, t, 1.6, "lowpass", 300, 1, 0.8, 0.05, 900); break; }
       case "denied": { const o = this.out(undefined, 0.4, 2, false); this.tone(o, t, 0.15, "square", 220, 200, 0.12); this.tone(o, t + 0.16, 0.15, "square", 180, 170, 0.12); break; }
     }
   }

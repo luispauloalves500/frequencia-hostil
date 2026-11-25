@@ -67,3 +67,26 @@ describe("F2 • Mercado Afogado (simulação)", () => {
     void F2_POINTS;
   }, 120000);
 });
+
+describe("F1 → F2: inventário", () => {
+  it("a F2 começa com o arsenal, a baliza, a vida e os curativos com que a F1 terminou", async () => {
+    const { F1 } = await import("../src/levels/f1");
+    const { f2EntryFromF1, migrateCheckpoint } = await import("../src/core/progress");
+    const f1 = new Sim(F1); f1.start("F1-B", { ...f1Inventory(), phase: "F1", point: "F1-B", hp: 73, medkits: 2, weapons: { agulha: { mag: 11, reserve: 57 } } });
+    f1.stats.time = 300;
+    const entry = f2EntryFromF1(f1.checkpoint("F2-A"));
+    expect(entry.phase).toBe("F2");
+    expect(entry.playTime).toBe(0);
+    const f2 = new Sim(F2); f2.start("F2-A", entry);
+    expect(f2.arsenal.ammo("agulha")).toEqual({ mag: 11, reserve: 57 });
+    expect(f2.arsenal.current).toBe("agulha");
+    expect(f2.beacon.owned).toBe(true);
+    expect(f2.hp).toBe(73);
+    expect(f2.medkits).toBe(2);
+    expect(f2.flags.fole).toBeFalsy();
+    expect(f2.stats.kills).toBe(0);
+    // save antigo da prévia vira a F2 real mantendo o inventário
+    const old = migrateCheckpoint({ ...f1.checkpoint("F2-A"), phase: "F2P", flags: { x: true } });
+    expect(old.phase).toBe("F2"); expect(old.flags).toEqual({}); expect(old.weapons.agulha.reserve).toBe(57);
+  });
+});
