@@ -1,0 +1,102 @@
+{
+  "name": "d04",
+  "ok": false,
+  "checks": [
+    {
+      "label": "versão v0.4.0 • D04 no menu",
+      "ok": true,
+      "detail": "v0.4.0 • D04"
+    },
+    {
+      "label": "F1 concluída: entrada da F2 salva com o inventário da F1",
+      "ok": true,
+      "detail": "{\"inv\":{\"agulha\":{\"mag\":14,\"reserve\":35}},\"entry\":{\"agulha\":{\"mag\":14,\"reserve\":35}}}"
+    },
+    {
+      "label": "F2 começa com o inventário da F1 (Agulha, pente/reserva, baliza, vida, curativos)",
+      "ok": true,
+      "detail": "{\"inv\":{\"agulha\":{\"mag\":14,\"reserve\":35}},\"cur\":\"agulha\",\"beacon\":true,\"hp\":77,\"kits\":2,\"obj\":\"Pegue o Fole na bancada sob a placa de gelo\",\"t\":0}"
+    },
+    {
+      "label": "objetivo inicial da F2",
+      "ok": true,
+      "detail": "Pegue o Fole na bancada sob a placa de gelo"
+    },
+    {
+      "label": "roteiro F2 por baixo concluído",
+      "ok": false,
+      "detail": ""
+    },
+    {
+      "label": "Fole pego na bancada sob a placa de gelo",
+      "ok": true,
+      "detail": "8"
+    },
+    {
+      "label": "névoa do Véu cobre a passagem e o sopro a afasta",
+      "ok": true,
+      "detail": "1 → 0"
+    },
+    {
+      "label": "rota baixa com o Fole (Véu derrubado com o Fole)",
+      "ok": true,
+      "detail": "true fole"
+    },
+    {
+      "label": "registro 2: objetivo vira “Atravesse a comporta” durante a abertura",
+      "ok": true,
+      "detail": "Atravesse a comporta"
+    },
+    {
+      "label": "abertura de 8 s com a luz em quatro segmentos",
+      "ok": true,
+      "detail": "8 s, 4 segmentos"
+    },
+    {
+      "label": "cruzou a saída com um comum ainda vivo",
+      "ok": true,
+      "detail": "vivos: 1"
+    },
+    {
+      "label": "resultado da F2 (rota, vivos na saída, Fole, sopros)",
+      "ok": true,
+      "detail": "Tempo\t0:43 • Rota até a praça\tPor baixo (névoa, Fole) • Criaturas derrubadas\t7 • Comuns vivos na saída\t1 • Precisão da Agulha\t100% • Fragmentos do Fole no alvo\t100% • Sopros\t1 • Quedas\t0 • Dano recebido\t52"
+    },
+    {
+      "label": "abrigo F2-B foi salvo durante a corrida",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "menu oferece Continuar na F2-B",
+      "ok": true,
+      "detail": "Último registro: F2 • Mercado Afogado • F2-B • Normal"
+    },
+    {
+      "label": "F2-B reabre com o primeiro registro aberto (porta do corredor liberada, LED verde)",
+      "ok": false,
+      "detail": "{\"point\":\"F2-B\",\"pos\":{\"x\":73,\"y\":0,\"z\":1.4},\"reg1\":true,\"corredor\":false,\"led\":16728096,\"fole\":{\"mag\":6,\"reserve\":6}}"
+    },
+    {
+      "label": "rota alta com a Agulha (escada, passarela, toldo)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F2 concluída por cima com comum vivo na saída",
+      "ok": true,
+      "detail": "{\"route\":\"toldo\",\"alive\":1}"
+    },
+    {
+      "label": "sem erros no console",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "notes": [
+    "F1: [18.6s] ondas encerradas — painel liberado | [21.7s] painel acionado",
+    "F2 (baixo): [3.1s] pegou o Fole (8/8) | [4.7s] sopro: névoa 1.00 → 0.00 | [7.2s] passou por baixo; Véu derrubado (fole) | [14.5s] praça limpa (vida 77) | [18.5s] registro da praça aberto | [22.3s] abrigo F2-B (vida 77) | [28.8s] registro 2: comporta abrindo",
+    "F2 (cima): [3.1s] pegou o Fole (8/8) | [7.0s] subiu a escada da peixaria | [17.3s] atravessou por cima (toldo): true | [19.7s] praça limpa (vida 86) | [23.6s] registro da praça aberto | [27.4s] abrigo F2-B (vida 86) | [34.0s] registro 2: comporta abrindo"
+  ],
+  "at": "2026-11-25T22:45:23.093Z"
+}

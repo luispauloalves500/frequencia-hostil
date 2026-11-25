@@ -727,6 +727,11 @@ export class Renderer {
           break;
         }
         case "equip": if (e.what === "fole") { const b = this.decorById.get("bancada-fole"); if (b) { for (const it of b.userData.items) it.visible = false; b.userData.glow.intensity = 0.3; } break; } else { const l = this.decorById.get("armario-lia"); if (l) { for (const it of l.userData.items) it.visible = false; l.userData.glow.intensity = 0.5; } break; }
+        case "levelStart": { // estado restaurado de um registro (ex.: F2-B com o registro da praça já aberto)
+          for (const id of ["registro1", "registro2"]) { const d = this.decorById.get(id); if (d && sim.flags[id]) { (d.userData.led.material as THREE.MeshBasicMaterial).color.set(0x40ff70); d.userData.wheel.rotation.z = 2.4; } }
+          if (sim.flags.fole) { const b = this.decorById.get("bancada-fole"); if (b) { for (const it of b.userData.items) it.visible = false; b.userData.glow.intensity = 0.3; } }
+          break;
+        }
         case "sopro": {
           this.soproAnim = 0.5;
           const dir = this.tmpB.set(e.dir.x, 0.05, e.dir.z);

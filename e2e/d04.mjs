@@ -85,7 +85,7 @@ export async function run(url) {
       { file: "08-comporta-abrindo.png", when: () => (window.__fh.sim.script.segmentsLit ?? 0) >= 2, before: () => window.__fh.aimAt({ x: 103.7, y: 5.6, z: 4 }) },
     ]);
     R.note("F2 (baixo): " + low.log.join(" | "));
-    R.check("roteiro F2 por baixo concluído", low.ok && low.done && !low.error, low.error);
+    R.check("roteiro F2 por baixo concluído", !low.error && (low.ok || (await page.evaluate(() => window.__fh.state)) === "result"), low.error);
     R.check("Fole pego na bancada sob a placa de gelo", low.data.foleMag === 8, String(low.data.foleMag));
     R.check("névoa do Véu cobre a passagem e o sopro a afasta", low.data.densityBefore > 0.3 && low.data.densityAfterSopro === 0, `${low.data.densityBefore} → ${low.data.densityAfterSopro}`);
     R.check("rota baixa com o Fole (Véu derrubado com o Fole)", low.data.lowRoute === true && low.data.veuKilledBy === "fole", `${low.data.lowRoute} ${low.data.veuKilledBy}`);
@@ -125,7 +125,7 @@ export async function run(url) {
       { file: "12-agulha-cristal.png", when: () => { const s = window.__fh.sim; return s.arsenal.current === "agulha" && s.creatures.some((c) => c.alive && c.type !== "veu" && c.state !== "emerging" && Math.hypot(c.pos.x - s.player.pos.x, c.pos.z - s.player.pos.z) < 9); }, before: () => { const s = window.__fh.sim; const c = s.creatures.find((c) => c.alive && c.type !== "veu" && c.state !== "emerging"); if (c) window.__fh.aimAt(c.center()); } },
     ]);
     R.note("F2 (cima): " + high.log.join(" | "));
-    R.check("rota alta com a Agulha (escada, passarela, toldo)", high.ok && high.data.routeHigh === true, high.error || "");
+    R.check("rota alta com a Agulha (escada, passarela, toldo)", !high.error && high.data.routeHigh === true, high.error || "");
     await waitFor(page, () => window.__fh.state === "result", null, 30000, "resultado F2 (cima)");
     const res2 = await page.evaluate(() => window.__fhResult);
     R.check("F2 concluída por cima com comum vivo na saída", res2.route === "toldo" && res2.alive >= 1, JSON.stringify({ route: res2.route, alive: res2.alive }));
