@@ -1,0 +1,210 @@
+{
+  "label": "v04",
+  "quality": "media",
+  "at": "2026-11-25T22:49:18.831Z",
+  "menuReadyMs": 2472,
+  "scenes": {
+    "menu": {
+      "drawCalls": 126,
+      "triangles": 10023,
+      "programs": 63,
+      "programsNewDuringSample": 0,
+      "geometries": 116,
+      "textures": 27,
+      "pointLightsInScene": 58,
+      "lightsOn": 9,
+      "meshes": 218,
+      "visibleMeshes": 213,
+      "pointsAndLines": 3,
+      "jsMsMedian": 1.4,
+      "jsMsAvg": 1.42,
+      "frameMsWithGpuSyncMedian": 332.5,
+      "heapKBPerFrame": 91.2,
+      "lightPool": {
+        "sources": 32,
+        "inFrustum": 8,
+        "used": 8
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "bilheteria": {
+      "drawCalls": 284,
+      "triangles": 14512,
+      "programs": 72,
+      "programsNewDuringSample": 0,
+      "geometries": 273,
+      "textures": 44,
+      "pointLightsInScene": 58,
+      "lightsOn": 13,
+      "meshes": 359,
+      "visibleMeshes": 352,
+      "pointsAndLines": 5,
+      "jsMsMedian": 2.6,
+      "jsMsAvg": 3.77,
+      "frameMsWithGpuSyncMedian": 656.1,
+      "heapKBPerFrame": 188.4,
+      "lightPool": {
+        "sources": 32,
+        "inFrustum": 23,
+        "used": 12
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "praca": {
+      "drawCalls": 176,
+      "triangles": 10725,
+      "programs": 72,
+      "programsNewDuringSample": 0,
+      "geometries": 330,
+      "textures": 44,
+      "pointLightsInScene": 58,
+      "lightsOn": 13,
+      "meshes": 423,
+      "visibleMeshes": 415,
+      "pointsAndLines": 5,
+      "jsMsMedian": 2.2,
+      "jsMsAvg": 2.87,
+      "frameMsWithGpuSyncMedian": 581.8,
+      "heapKBPerFrame": 99.2,
+      "lightPool": {
+        "sources": 32,
+        "inFrustum": 12,
+        "used": 12
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "embarque": {
+      "drawCalls": 80,
+      "triangles": 8082,
+      "programs": 72,
+      "programsNewDuringSample": 0,
+      "geometries": 330,
+      "textures": 44,
+      "pointLightsInScene": 58,
+      "lightsOn": 5,
+      "meshes": 423,
+      "visibleMeshes": 415,
+      "pointsAndLines": 5,
+      "jsMsMedian": 1.5,
+      "jsMsAvg": 1.68,
+      "frameMsWithGpuSyncMedian": 471,
+      "heapKBPerFrame": 46.4,
+      "lightPool": {
+        "sources": 32,
+        "inFrustum": 4,
+        "used": 4
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "f2Peixaria": {
+      "drawCalls": 286,
+      "triangles": 15670,
+      "programs": 76,
+      "programsNewDuringSample": 0,
+      "geometries": 274,
+      "textures": 62,
+      "pointLightsInScene": 61,
+      "lightsOn": 13,
+      "meshes": 234,
+      "visibleMeshes": 227,
+      "pointsAndLines": 6,
+      "jsMsMedian": 2.8,
+      "jsMsAvg": 3.62,
+      "frameMsWithGpuSyncMedian": 627.7,
+      "heapKBPerFrame": 129,
+      "lightPool": {
+        "sources": 35,
+        "inFrustum": 35,
+        "used": 12
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "f2Praca": {
+      "drawCalls": 224,
+      "triangles": 14087,
+      "programs": 76,
+      "programsNewDuringSample": 0,
+      "geometries": 274,
+      "textures": 62,
+      "pointLightsInScene": 61,
+      "lightsOn": 13,
+      "meshes": 234,
+      "visibleMeshes": 227,
+      "pointsAndLines": 6,
+      "jsMsMedian": 2.1,
+      "jsMsAvg": 2.24,
+      "frameMsWithGpuSyncMedian": 595.5,
+      "heapKBPerFrame": 81.6,
+      "lightPool": {
+        "sources": 35,
+        "inFrustum": 25,
+        "used": 12
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "f2Nevoa": {
+      "drawCalls": 253,
+      "triangles": 14392,
+      "programs": 77,
+      "programsNewDuringSample": 0,
+      "geometries": 275,
+      "textures": 63,
+      "pointLightsInScene": 61,
+      "lightsOn": 13,
+      "meshes": 234,
+      "visibleMeshes": 227,
+      "pointsAndLines": 6,
+      "jsMsMedian": 2.4,
+      "jsMsAvg": 2.67,
+      "frameMsWithGpuSyncMedian": 757.5,
+      "heapKBPerFrame": 103.3,
+      "lightPool": {
+        "sources": 35,
+        "inFrustum": 30,
+        "used": 12
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    },
+    "f2Boia": {
+      "drawCalls": 127,
+      "triangles": 10201,
+      "programs": 77,
+      "programsNewDuringSample": 0,
+      "geometries": 275,
+      "textures": 63,
+      "pointLightsInScene": 61,
+      "lightsOn": 12,
+      "meshes": 234,
+      "visibleMeshes": 227,
+      "pointsAndLines": 6,
+      "jsMsMedian": 1.5,
+      "jsMsAvg": 1.65,
+      "frameMsWithGpuSyncMedian": 501.7,
+      "heapKBPerFrame": 48.4,
+      "lightPool": {
+        "sources": 35,
+        "inFrustum": 11,
+        "used": 11
+      },
+      "pixelRatio": 1,
+      "drawingBuffer": "1920x1080"
+    }
+  },
+  "f1LoadMs": 145,
+  "f2LoadMs": 253,
+  "bundle": [
+    {
+      "file": "index-CJUxiSxR.js",
+      "kB": 806,
+      "gzipKB": 213.4
+    }
+  ],
+  "consoleErrors": []
+}

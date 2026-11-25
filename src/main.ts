@@ -390,7 +390,7 @@ class Game {
     return rects.some((r) => p.x > r[0] && p.x < r[2] && p.z > r[1] && p.z < r[3]);
   }
   private kitEls: HTMLElement[] | null = null;
-  private slotKey = "";
+  private slotKey = -1;
   private fogVis = 0;
   foleHinted = false;
   private diagT = 0;
@@ -415,9 +415,10 @@ class Game {
       UI.style("altCost", "color", am.mag < d.altCost ? "#ff8080" : "");
     } else UI.text("altCost", "");
     // armas que a Lia carrega (número do atalho)
-    const slots = ([...a.owned.keys()] as (keyof typeof WEAPONS)[]).sort((x, y) => WEAPONS[x].slot - WEAPONS[y].slot);
-    const sk = slots.join(",") + "|" + a.current;
-    if (sk !== this.slotKey) { this.slotKey = sk; UI.html("wSlots", slots.length > 1 ? slots.map((w) => (w === a.current ? `<b>${WEAPONS[w].slot} ${WEAPONS[w].nome.toUpperCase()}</b>` : `<i>${WEAPONS[w].slot} ${WEAPONS[w].nome.toUpperCase()}</i>`)).join("  ") : ""); }
+    const sk = a.owned.size * 100 + (a.current ? WEAPONS[a.current].slot : 0);
+    if (sk !== this.slotKey) {
+      this.slotKey = sk;
+      const slots = ([...a.owned.keys()] as (keyof typeof WEAPONS)[]).sort((x, y) => WEAPONS[x].slot - WEAPONS[y].slot); UI.html("wSlots", slots.length > 1 ? slots.map((w) => (w === a.current ? `<b>${WEAPONS[w].slot} ${WEAPONS[w].nome.toUpperCase()}</b>` : `<i>${WEAPONS[w].slot} ${WEAPONS[w].nome.toUpperCase()}</i>`)).join("  ") : ""); }
     // névoa do Véu na câmera
     const fogK = sim.cloudDensity(sim.player.eyePos());
     this.fogVis += (fogK - this.fogVis) * Math.min(1, dt * 5);

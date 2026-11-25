@@ -1,9 +1,34 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { texFish, texGlow, texSign, texVeins } from "./textures";
 
 const ceramic = () => new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.35, metalness: 0.05, flatShading: true, emissive: 0x000000 });
 const darkCeramic = () => new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.5, flatShading: true });
 export const rimMat = (color = 0x6ff0ff) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true });
+
+/**
+ * Junta, por material, as peças fixas filhas diretas de `root` (as animadas ficam de fora): o mesmo desenho
+ * com bem menos chamadas de desenho para as armas detalhadas.
+ */
+function mergeByMaterial(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
+  const groups = new Map<THREE.Material, THREE.Mesh[]>();
+  for (const o of root.children) {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || keep.has(m) || Array.isArray(m.material)) continue;
+    const a = m.geometry.attributes;
+    if (!a.position || !a.normal || !a.uv || Object.keys(a).length !== 3 || !m.geometry.index) continue;
+    const arr = groups.get(m.material as THREE.Material) ?? []; arr.push(m); groups.set(m.material as THREE.Material, arr);
+  }
+  for (const [mat, meshes] of groups) {
+    if (meshes.length < 2) continue;
+    const geos = meshes.map((m) => { m.updateMatrix(); return m.geometry.clone().applyMatrix4(m.matrix); });
+    const merged = mergeGeometries(geos, false);
+    geos.forEach((g) => g.dispose());
+    if (!merged) continue;
+    for (const m of meshes) { m.removeFromParent(); m.geometry.dispose(); }
+    root.add(new THREE.Mesh(merged, mat));
+  }
+}
 
 export interface CreatureRig {
   root: THREE.Group;
@@ -246,6 +271,7 @@ export function buildAgulha(): WeaponView {
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.01, -0.54); root.add(muzzle);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texGlow(), color: 0x8ff4ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   flash.scale.setScalar(0.18); flash.position.copy(muzzle.position); flash.visible = false; root.add(flash);
+  mergeByMaterial(root, new Set<THREE.Object3D>([...coils, ...leds]));
   root.traverse((o) => { o.frustumCulled = false; });
   return { root, mag, coils, muzzle, flash, magMat, slide, leds, hand };
 }
@@ -391,6 +417,8 @@ export function buildFoleModel(): WeaponView {
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.005, -0.52); root.add(muzzle);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texGlow(), color: 0xffc080, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   flash.scale.setScalar(0.3); flash.position.copy(muzzle.position); flash.visible = false; root.add(flash);
+  root.traverse((o) => { o.frustumCulled = false; });
+  mergeByMaterial(root, new Set<THREE.Object3D>([...vents, ...leds]));
   root.traverse((o) => { o.frustumCulled = false; });
   return { root, mag, coils, muzzle, flash, magMat, leds, bellows, hand, vents };
 }

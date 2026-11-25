@@ -1,6 +1,6 @@
 {
   "name": "d04",
-  "ok": false,
+  "ok": true,
   "checks": [
     {
       "label": "versão v0.4.0 • D04 no menu",
@@ -24,7 +24,7 @@
     },
     {
       "label": "roteiro F2 por baixo concluído",
-      "ok": false,
+      "ok": true,
       "detail": ""
     },
     {
@@ -74,8 +74,8 @@
     },
     {
       "label": "F2-B reabre com o primeiro registro aberto (porta do corredor liberada, LED verde)",
-      "ok": false,
-      "detail": "{\"point\":\"F2-B\",\"pos\":{\"x\":73,\"y\":0,\"z\":1.4},\"reg1\":true,\"corredor\":false,\"led\":16728096,\"fole\":{\"mag\":6,\"reserve\":6}}"
+      "ok": true,
+      "detail": "{\"point\":\"F2-B\",\"pos\":{\"x\":73,\"y\":0,\"z\":1.4},\"reg1\":true,\"corredor\":false,\"led\":4259696,\"fole\":{\"mag\":6,\"reserve\":6}}"
     },
     {
       "label": "rota alta com a Agulha (escada, passarela, toldo)",
@@ -94,9 +94,9 @@
     }
   ],
   "notes": [
-    "F1: [18.6s] ondas encerradas — painel liberado | [21.7s] painel acionado",
+    "F1: [17.9s] ondas encerradas — painel liberado | [21.0s] painel acionado",
     "F2 (baixo): [3.1s] pegou o Fole (8/8) | [4.7s] sopro: névoa 1.00 → 0.00 | [7.2s] passou por baixo; Véu derrubado (fole) | [14.5s] praça limpa (vida 77) | [18.5s] registro da praça aberto | [22.3s] abrigo F2-B (vida 77) | [28.8s] registro 2: comporta abrindo",
-    "F2 (cima): [3.1s] pegou o Fole (8/8) | [7.0s] subiu a escada da peixaria | [17.3s] atravessou por cima (toldo): true | [19.7s] praça limpa (vida 86) | [23.6s] registro da praça aberto | [27.4s] abrigo F2-B (vida 86) | [34.0s] registro 2: comporta abrindo"
+    "F2 (cima): [4.1s] pegou o Fole (8/8) | [7.9s] subiu a escada da peixaria | [18.2s] atravessou por cima (toldo): true | [20.6s] praça limpa (vida 86) | [24.5s] registro da praça aberto | [28.4s] abrigo F2-B (vida 86) | [34.9s] registro 2: comporta abrindo"
   ],
-  "at": "2026-11-25T22:45:23.093Z"
+  "at": "2026-11-25T22:49:13.264Z"
 }

@@ -52,7 +52,7 @@ await page.evaluate(() => {
 
 async function measure(scene, frames = 40) {
   await sleep(1500);
-  await page.evaluate(() => { window.gc?.(); const P = window.__perf; P.js = []; P.sync = []; P.heap = []; P.calls = []; P.tris = []; P.on = true; });
+  await page.evaluate(() => { window.gc?.(); const P = window.__perf; P.js = []; P.sync = []; P.heap = []; P.calls = []; P.tris = []; P.prog0 = window.__fh.game.renderer.renderer.info.programs?.length ?? 0; P.on = true; });
   await waitFor(page, (n) => window.__perf.js.length >= n, frames, 300000, "quadros");
   const r = await page.evaluate(() => {
     const P = window.__perf; P.on = false;
@@ -63,7 +63,7 @@ async function measure(scene, frames = 40) {
     R.scene.traverse((o) => { if (o.isLight && !o.isAmbientLight && !o.isHemisphereLight) { lights++; if (o.visible && o.intensity > 0) lightsOn++; } if (o.isMesh) { meshes++; if (o.visible) visibleMeshes++; } if (o.isPoints || o.isLineSegments) points++; });
     return {
       drawCalls: Math.round(avg(P.calls)), triangles: Math.round(avg(P.tris)),
-      programs: info.programs?.length ?? null, geometries: info.memory.geometries, textures: info.memory.textures,
+      programs: info.programs?.length ?? null, programsNewDuringSample: (info.programs?.length ?? 0) - P.prog0, geometries: info.memory.geometries, textures: info.memory.textures,
       pointLightsInScene: lights, lightsOn, meshes, visibleMeshes, pointsAndLines: points,
       jsMsMedian: +med(P.js).toFixed(2), jsMsAvg: +avg(P.js).toFixed(2),
       frameMsWithGpuSyncMedian: +med(P.sync).toFixed(1),

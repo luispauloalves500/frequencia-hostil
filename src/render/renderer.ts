@@ -524,6 +524,7 @@ export class Renderer {
     const g = new THREE.Group();
     g.position.set(d.pos.x, d.pos.y, d.pos.z);
     g.rotation.y = d.rot ?? 0;
+    g.name = d.kind;
     switch (d.kind) {
       case "sign": case "shelterSign": {
         const m = signMesh(d.text ?? "", d.color ?? 0xffffff);
@@ -630,7 +631,7 @@ export class Renderer {
         const door = new THREE.Mesh(new THREE.BoxGeometry(0.03, 1.9, 0.6), this.mats.armario.mat);
         door.position.set(0.62, 1.0, 0.25); door.rotation.y = -1.1;
         const glow = new THREE.PointLight(0x7ff6ff, 4, 3, 2); glow.position.set(0, 1.4, 0.4);
-        const gun = buildAgulha().root; gun.scale.setScalar(1.6); gun.rotation.set(0, Math.PI / 2, Math.PI / 2.2); gun.position.set(0, 1.25, 0.1);
+        const gun = buildAgulha().root; gun.traverse((o) => { o.frustumCulled = true; }); gun.scale.setScalar(1.6); gun.rotation.set(0, Math.PI / 2, Math.PI / 2.2); gun.position.set(0, 1.25, 0.1);
         const bea = buildBeaconDevice().root; bea.position.set(0.25, 0.5, 0.1); bea.scale.setScalar(1.6);
         g.add(door, glow, gun, bea);
         g.userData.items = [gun, bea]; g.userData.glow = glow; g.userData.vlights = [glow];

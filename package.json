@@ -1,9 +1,9 @@
 {
   "name": "frequencia-hostil",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "FREQUÊNCIA HOSTIL — FPS de ficção científica para navegador (F1 • Última Chamada)",
+  "description": "FREQUÊNCIA HOSTIL — FPS de ficção científica para navegador (F1 • Última Chamada, F2 • Mercado Afogado)",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
