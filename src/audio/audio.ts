@@ -13,6 +13,8 @@ export class AudioEngine {
   private rainGain: GainNode | null = null;
   private duck = 1;
   private musicTimer = 0;
+  /** ambiente: gotas, canos rangendo e gemidos distantes em intervalos aleatórios */
+  private ambTimer = 3;
   private step = 0;
   intensity = 0; // 0 exploração, 1 ameaça, 2 pico
   outdoors = 0;
@@ -314,6 +316,17 @@ export class AudioEngine {
     const targets = [1, lvl >= 1 ? 0.9 : 0, lvl >= 2 ? 1 : 0];
     this.musicLayers.forEach((l, i) => l.g.gain.setTargetAtTime(ctxInfo.paused ? targets[i] * 0.3 : targets[i] * this.duck, t, 0.6));
     if (this.rainGain) this.rainGain.gain.setTargetAtTime(ctxInfo.outdoors ? 0.12 : 0.03, t, 0.5);
+    // ambiente: um som distante a cada 4–10 s (só fora de combate pesado)
+    this.ambTimer -= dt;
+    if (this.ambTimer <= 0 && !ctxInfo.paused) {
+      this.ambTimer = 4 + Math.random() * 6;
+      if (lvl < 2) {
+        const r = Math.random(), d = 0.35 + Math.random() * 0.4;
+        if (r < 0.4) { const f = 900 + Math.random() * 700; this.tone(this.amb, t, 0.12, "sine", f, f * 0.6, 0.05 * d); this.tone(this.amb, t + 0.09, 0.1, "sine", f * 0.8, f * 0.5, 0.025 * d); } // gota
+        else if (r < 0.7) { this.tone(this.amb, t, 1.4 + Math.random(), "sawtooth", 70 + Math.random() * 30, 55, 0.018 * d, 0.4); this.noise(this.amb, t, 1.2, "bandpass", 300, 6, 0.02 * d, 0.3, 180); } // cano rangendo
+        else { this.tone(this.amb, t, 1.8, "triangle", 150 + Math.random() * 40, 95, 0.022 * d, 0.5); this.noise(this.amb, t + 0.2, 1.3, "lowpass", 500, 2, 0.015 * d, 0.4); } // gemido distante do Coro
+      }
+    }
     // sequenciador: ostinato (ameaça) e percussão (pico)
     this.musicTimer -= dt;
     if (this.musicTimer <= 0 && !ctxInfo.paused) {
