@@ -14,13 +14,13 @@ const std = (key: string, o: THREE.MeshStandardMaterialParameters) => mat(key, (
 const basic = (key: string, o: THREE.MeshBasicMaterialParameters) => mat(key, () => new THREE.MeshBasicMaterial({ toneMapped: false, ...o }));
 
 const F = {
-  tank: () => std("f3tank", { color: 0x56625e, map: TX.texConcrete(), roughness: 0.8, metalness: 0.15 }),
+  tank: () => std("f3tank", { color: 0x9aa49c, map: TX.texConcrete(), roughness: 0.8, metalness: 0.15 }),
   band: () => std("f3band", { color: 0x3a3226, metalness: 0.5, roughness: 0.6 }),
   paintGreen: () => std("f3green", { color: 0x2f5a4a, metalness: 0.35, roughness: 0.55 }),
   paintRed: () => std("f3red", { color: 0x7a2a22, metalness: 0.35, roughness: 0.55 }),
   gravel: () => std("f3gravel", { map: TX.texGravel(), roughness: 0.95 }),
   hazard: () => std("f3hazard", { map: TX.texHazard(), roughness: 0.7 }),
-  water: () => std("f3water", { color: 0x1a2a2c, roughness: 0.08, metalness: 0.6, envMapIntensity: 1.0, transparent: true, opacity: 0.85 }),
+  water: () => std("f3water", { color: 0x1a2a2c, roughness: 0.3, metalness: 0.2, envMapIntensity: 0.6, transparent: true, opacity: 0.85 }),
   dark: () => std("f3dark", { color: 0x07090a, roughness: 1 }),
   dial: () => std("f3dial", { color: 0xd8d2c0, roughness: 0.6 }),
   needle: () => basic("f3needle", { color: 0x9a1a10 }),

@@ -3,7 +3,7 @@
 import { startServer, launch, sleep, waitFor, Report, openGame, SHOTS } from "./lib.mjs";
 import { mkdirSync } from "node:fs";
 
-const DIR = SHOTS + "v0.4/";
+const DIR = SHOTS + "v0.5/d04/";
 mkdirSync(DIR, { recursive: true });
 
 async function snap(page, name, before) {
@@ -52,7 +52,7 @@ export async function run(url) {
     await page.reload();
     await waitFor(page, () => window.__fh?.state === "menu", null, 30000, "menu");
     const ver = await page.evaluate(() => document.getElementById("buildTag").textContent);
-    R.check("versão v0.4.0 • D04 no menu", ver.includes("0.4.0") && ver.includes("D04"), ver);
+    R.check("versão no menu", /v0\.\d+\.\d+/.test(ver), ver);
 
     // ---- 1. F1 (a partir do abrigo F1-B, com um inventário fora do padrão) → F2
     const f1cp = { phase: "F1", point: "F1-B", hp: 77, medkits: 2, weapons: { agulha: { mag: 19, reserve: 61 } }, current: "agulha", hasBeacon: true, objective: "", flags: { armario: true, persiana: true, trinco: true, abrigoB: true, tutorial: true }, difficulty: "normal", playTime: 312, deaths: 0, stats: { kills: 3, shots: 40, hits: 25, pulses: 1, damageTaken: 20 } };
@@ -92,9 +92,9 @@ export async function run(url) {
     R.check("registro 2: objetivo vira “Atravesse a comporta” durante a abertura", low.data.objectiveDuringGate === "Atravesse a comporta", low.data.objectiveDuringGate);
     R.check("abertura de 8 s com a luz em quatro segmentos", low.data.gateSecs >= 7.9 && low.data.gateSecs <= 8.3 && low.data.segments === 4, `${low.data.gateSecs} s, ${low.data.segments} segmentos`);
     await waitFor(page, () => window.__fh.state === "result", null, 30000, "resultado F2");
-    const res = await page.evaluate(() => ({ r: window.__fhResult, table: document.getElementById("resTable").innerText, title: document.getElementById("resTitle").textContent, next: document.getElementById("btnNext").disabled }));
+    const res = await page.evaluate(() => ({ r: window.__fhResult, table: document.getElementById("resTable").innerText, title: document.getElementById("resTitle").textContent, next: !document.getElementById("btnNext").disabled && /bombas/i.test(document.getElementById("btnNext").textContent) }));
     R.check("cruzou a saída com um comum ainda vivo", res.r.level === "F2" && res.r.alive >= 1, `vivos: ${res.r.alive}`);
-    R.check("resultado da F2 (rota, vivos na saída, Fole, sopros)", res.title.includes("Mercado Afogado") && res.table.includes("Por baixo") && res.table.includes("Sopros") && res.next, res.table.replace(/\n/g, " • "));
+    R.check("resultado da F2 (rota, vivos na saída, Fole, sopros) e botão para a F3 liberado", res.title.includes("Mercado Afogado") && res.table.includes("Por baixo") && res.table.includes("Sopros") && res.next, res.table.replace(/\n/g, " • "));
     await sleep(600);
     await page.screenshot({ path: DIR + "09-resultado-f2.png" });
 

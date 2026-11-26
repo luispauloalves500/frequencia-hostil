@@ -15,7 +15,7 @@ import { defaultF2Entry as f2Entry, defaultF3Entry as f3Entry, f2EntryFromF1, f3
 import type { LevelDef } from "./levels/types";
 import { angleDiff, yawTo } from "./core/math";
 import * as UI from "./ui/dom";
-import { PlanRunner, tutorialToShelter, dieInWave2, finishPraca, quickOpening, f2Full, f2TakeFole, f2LowPassage, f2HighRoute, f2Praca, f2Boia, type Plan } from "./scenarios";
+import { PlanRunner, tutorialToShelter, dieInWave2, finishPraca, quickOpening, f2Full, f2TakeFole, f2LowPassage, f2HighRoute, f2Praca, f2Boia, f3Full, f3TakeTear, f3Filtros, f3Batente, f3Galeria, f3Boss, f3Exit, type Plan } from "./scenarios";
 
 export const BUILD = { version: "0.5.0", milestone: "D05" };
 
@@ -624,6 +624,12 @@ if (DEBUG) {
         f2: (r) => f2Full(r, (arg as any) ?? "baixo"),
         f2Fole: f2TakeFole, f2Low: f2LowPassage, f2High: f2HighRoute, f2Praca: f2Praca,
         f2Boia: (r) => f2Boia(r, arg !== "limpa"),
+        // F3: arg = "rota/metodo" (ex.: "passarela/alterna", "margem/baliza")
+        f3: (r) => f3Full(r, ((arg ?? "").split("/")[0] || "passarela") as any, ((arg ?? "").split("/")[1] || "alterna") as any),
+        f3Ate: function* (r) { yield* f3TakeTear(r); yield* f3Filtros(r); yield* f3Batente(r); yield* f3Galeria(r, (arg as any) || "passarela"); },
+        f3Boss: (r) => f3Boss(r, (arg as any) || "alterna"),
+        f3BossMeio: (r) => f3Boss(r, "alterna", true),
+        f3Exit: f3Exit,
       };
       game.plan = new PlanRunner(game.sim, auto, plans[name]);
       return true;

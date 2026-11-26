@@ -175,6 +175,8 @@ const LIGHTS: LightDef[] = [
   // poço
   { pos: { x: 92, y: 8.2, z: -8 }, color: 0x7fa8c8, intensity: 22, distance: 18 },
   { pos: { x: 108, y: 8.2, z: 8 }, color: 0x7fa8c8, intensity: 22, distance: 18 },
+  { pos: { x: 92, y: 8.2, z: 8 }, color: 0x9fb8c8, intensity: 18, distance: 16, flicker: 0.1 },
+  { pos: { x: 108, y: 8.2, z: -8 }, color: 0x9fb8c8, intensity: 18, distance: 16 },
   { pos: { x: 100, y: 3, z: 0 }, color: 0x4fd0b0, intensity: 10, distance: 8, flicker: 0.2 }, // brilho do poço
   { pos: { x: 87, y: 3, z: -12 }, color: 0x7ff6ff, intensity: 6, distance: 5 }, // dispensador
   { pos: { x: 113, y: 3.6, z: 0 }, color: 0xff3030, intensity: 12, distance: 8, id: "luz-tunel" },
