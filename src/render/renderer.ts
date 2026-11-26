@@ -743,6 +743,17 @@ export class Renderer {
     this.propReport.push({ kind: d.kind, id: d.id, pos: d.pos, min: bb.min.toArray().map((v) => +v.toFixed(2)), max: bb.max.toArray().map((v) => +v.toFixed(2)), support, loose });
   }
 
+  /** Depuração: malhas (≈ chamadas de desenho) e triângulos por criatura, já compactada. */
+  rigStats() {
+    const out: Record<string, { meshes: number; tris: number }> = {};
+    for (const [k, f] of Object.entries({ riscador: buildRiscador, estilhaco: buildEstilhaco, veu: buildVeu, carapaca: buildCarapaca, badalo: buildBadalo })) {
+      const r = compactRig(f()); let meshes = 0, tris = 0;
+      r.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.visible) { let p: THREE.Object3D | null = m; while (p) { if (!p.visible) return; p = p.parent; } meshes++; const g = m.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+      out[k] = { meshes, tris };
+    }
+    return out;
+  }
+
   /** Ferida presa ao corpo onde o tiro pegou (até 4 por criatura; somem devagar). */
   private addWound(cid: string, p: { x: number; y: number; z: number }, k: number) {
     const v = this.creatures.get(cid); if (!v) return;

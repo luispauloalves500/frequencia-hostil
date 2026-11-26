@@ -128,6 +128,17 @@ const glowMat = (color: number, opacity = 1) => new THREE.MeshBasicMaterial({ co
 
 const SPH = new THREE.SphereGeometry(1, 14, 10);
 const SPH_LO = new THREE.SphereGeometry(1, 8, 6);
+const SPH_HI = new THREE.SphereGeometry(1, 20, 14);
+/** cone (dente, espinho, garra) já posicionado e apontado */
+function spike(r: number, len: number, m: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0, seg = 5) {
+  const o = new THREE.Mesh(new THREE.ConeGeometry(r, len, seg), m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); return o;
+}
+/** tendão/haste fina entre dois pontos */
+function strand(a: THREE.Vector3, b: THREE.Vector3, r: number, m: THREE.Material) {
+  const d = b.clone().sub(a), L = d.length();
+  const o = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, L, 5, 1), m);
+  o.position.copy(a).addScaledVector(d, 0.5); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); return o;
+}
 function ell(rx: number, ry: number, rz: number, m: THREE.Material, x = 0, y = 0, z = 0, lo = false) {
   const o = new THREE.Mesh(lo ? SPH_LO : SPH, m); o.scale.set(rx, ry, rz); o.position.set(x, y, z); return o;
 }
@@ -142,6 +153,9 @@ function leg(len1: number, len2: number, r: number, mat: THREE.Material, joint: 
   const knee = new THREE.Group(); knee.position.y = -len1;
   knee.add(ell(r * 1.05, r * 1.05, r * 1.05, joint, 0, 0, 0, true));
   knee.add(seg(r * 0.7, r * 0.18, len2, mat));
+  // garra em gancho no pé e esporão no joelho
+  knee.add(spike(r * 0.5, r * 2.6, joint, 0, -len2 - r * 0.9, -r * 0.6, -0.5));
+  knee.add(spike(r * 0.35, r * 1.8, joint, 0, -len2 * 0.15, r * 0.9, 1.9));
   g.add(knee);
   g.userData.knee = knee;
   return g;
@@ -165,8 +179,10 @@ export function buildRiscador(): CreatureRig {
   const dark = flesh(0x3a332e, 0x5a2a22, dissolve);
   const belly = flesh(0xa88478, 0xc04a3a, dissolve);
   const body = new THREE.Group(); body.position.y = 0.62;
-  body.add(ell(0.27, 0.19, 0.4, chitin, 0, 0.02, 0.02)); // tórax
-  body.add(ell(0.22, 0.17, 0.3, chitin, 0, 0.0, 0.46)); // abdome
+  const tor = new THREE.Mesh(SPH_HI, chitin); tor.scale.set(0.27, 0.19, 0.4); tor.position.set(0, 0.02, 0.02); body.add(tor); // tórax (silhueta lisa)
+  const abd = new THREE.Mesh(SPH_HI, chitin); abd.scale.set(0.22, 0.17, 0.3); abd.position.set(0, 0, 0.46); body.add(abd); // abdome
+  for (let i = 0; i < 4; i++) { const band = ell(0.225 - i * 0.03, 0.035, 0.05, dark, 0, 0.04 - i * 0.012, 0.34 + i * 0.09, true); band.rotation.x = 0.35; body.add(band); } // anéis do abdome
+  for (const side of [-1, 1]) for (let i = 0; i < 3; i++) body.add(spike(0.02, 0.1, dark, side * (0.26 - i * 0.015), -0.02, -0.15 + i * 0.17, 0, 0, side * -1.9)); // espinhos laterais
   body.add(ell(0.2, 0.1, 0.5, belly, 0, -0.09, 0.15)); // ventre
   for (let i = 0; i < 4; i++) { const p = ell(0.24 - i * 0.02, 0.07, 0.15, dark, 0, 0.16 - i * 0.01, -0.22 + i * 0.2, true); p.rotation.x = -0.25; body.add(p); } // placas do dorso
   const rims: THREE.Mesh[] = [], accents: THREE.Mesh[] = [];
@@ -182,6 +198,12 @@ export function buildRiscador(): CreatureRig {
     for (const k of [0, 1]) { const eye = ell(0.018, 0.018, 0.018, glowMat(0x9ff8ff), side * (0.06 + k * 0.025), 0.05 - k * 0.02, -0.2 + k * 0.05, true); head.add(eye); accents.push(eye); }
   }
   const mouth = ell(0.07, 0.015, 0.05, glowMat(0xff6a3a, 0.8), 0, -0.06, -0.26, true); head.add(mouth); accents.push(mouth);
+  for (let i = 0; i < 6; i++) head.add(spike(0.009, 0.05, dark, -0.05 + i * 0.02, -0.045, -0.27 + Math.abs(i - 2.5) * 0.008, Math.PI)); // dentes
+  head.add(ell(0.12, 0.035, 0.07, chitin, 0, 0.085, -0.2)); // sobrancelha de quitina
+  for (const side of [-1, 1]) {
+    head.add(strand(new THREE.Vector3(side * 0.05, 0.08, -0.24), new THREE.Vector3(side * 0.2, 0.3, -0.5), 0.008, dark)); // antenas
+    head.add(strand(new THREE.Vector3(side * 0.04, -0.07, -0.25), new THREE.Vector3(side * 0.07, -0.16, -0.33), 0.012, dark)); // palpos
+  }
   body.add(head);
   root.add(body);
   const legs: THREE.Object3D[] = [];
@@ -206,11 +228,16 @@ export function buildEstilhaco(): CreatureRig {
   const body = new THREE.Group(); body.position.y = 1.15;
   body.add(ell(0.2, 0.46, 0.16, dark, 0, 0, 0)); // tronco
   body.add(ell(0.15, 0.3, 0.1, meat, 0, 0.02, -0.08)); // peito de carne
-  for (let i = 0; i < 4; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.17 - i * 0.012, 0.018, 5, 14, Math.PI * 1.2), bone); r.position.set(0, 0.18 - i * 0.1, -0.02); r.rotation.set(Math.PI / 2, 0, -Math.PI * 0.1 + Math.PI); body.add(r); } // costelas
+  for (let i = 0; i < 7; i++) { const v = ell(0.035, 0.03, 0.04, bone, 0, 0.36 - i * 0.12, 0.15 - Math.abs(i - 3) * 0.006, true); body.add(v); } // vértebras nas costas
+  for (const side of [-1, 1]) body.add(strand(new THREE.Vector3(side * 0.13, -0.45, 0.02), new THREE.Vector3(side * 0.16, -0.1, 0.0), 0.022, dark)); // tendões do flanco
+  for (let i = 0; i < 6; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.175 - i * 0.012, 0.016, 5, 14, Math.PI * 1.2), bone); r.position.set(0, 0.22 - i * 0.075, -0.02); r.rotation.set(Math.PI / 2, 0, -Math.PI * 0.1 + Math.PI); body.add(r); } // costelas
   body.add(ell(0.2, 0.13, 0.16, bone, 0, -0.5, 0, true)); // pelve
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 0.32, 7), dark); neck.position.y = 0.6; body.add(neck);
   const head = new THREE.Group(); head.position.y = 0.82;
   head.add(ell(0.12, 0.13, 0.16, bone, 0, 0.02, -0.04));
+  head.add(ell(0.085, 0.04, 0.1, bone, 0, -0.09, -0.1, true)); // mandíbula
+  for (let i = 0; i < 5; i++) head.add(spike(0.008, 0.045, bone, -0.04 + i * 0.02, -0.065, -0.17, Math.PI)); // dentes
+  for (const side of [-1, 1]) head.add(ell(0.05, 0.02, 0.05, bone, side * 0.055, 0.1, -0.13, true)); // arcadas
   const core = new THREE.Mesh(SPH_LO, new THREE.MeshBasicMaterial({ color: 0xff8040, toneMapped: false })); core.scale.setScalar(0.07); core.position.set(0, -0.03, -0.13);
   head.add(core);
   body.add(head);
@@ -221,6 +248,8 @@ export function buildEstilhaco(): CreatureRig {
     const up = seg(0.04, 0.03, 0.42, dark); arm.add(up);
     const fore = new THREE.Group(); fore.position.y = -0.42; fore.rotation.x = -0.4; arm.add(fore);
     const blade = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.5, 6), bone); blade.position.y = -0.25; blade.rotation.x = Math.PI; fore.add(blade);
+    for (const k of [-1, 1]) fore.add(spike(0.012, 0.16, bone, k * 0.03, -0.06, 0.02, Math.PI - 0.4, 0, k * 0.5)); // dedos-gancho
+    fore.add(ell(0.04, 0.04, 0.04, dark, 0, 0, 0, true)); // cotovelo
     body.add(arm);
   }
   // coroa: placas de osso em leque; a face interna tem uma fenda âmbar que acende ao mirar
@@ -264,6 +293,12 @@ export function buildVeu(): CreatureRig {
   const core = new THREE.Mesh(SPH_LO, new THREE.MeshBasicMaterial({ color: 0x8ff0d8, toneMapped: false })); core.scale.setScalar(0.07);
   body.add(sac, ribbon, ribbon2, core);
   const accents: THREE.Mesh[] = [core];
+  for (let i = 0; i < 9; i++) { // filamentos finos entre os tentáculos e manchas no topo
+    const a = (i / 9) * Math.PI * 2 + 0.3, L = 0.5 + (i % 3) * 0.25;
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.012, L, 4), sacMat); f.position.set(Math.cos(a) * 0.2, -0.15 - L / 2, Math.sin(a) * 0.2); f.rotation.set(Math.PI + Math.sin(a) * 0.15, 0, Math.cos(a) * 0.15); body.add(f);
+    const dot = ell(0.014, 0.014, 0.014, glowMat(0x7ff0d0, 0.85), Math.cos(a) * 0.17, 0.2, Math.sin(a) * 0.17, true); body.add(dot); accents.push(dot);
+  }
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; const r = ell(0.03, 0.2, 0.03, sacMat, Math.cos(a) * 0.3, 0.02, Math.sin(a) * 0.3, true); r.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9); body.add(r); } // nervuras da membrana
   for (let i = 0; i < 5; i++) { // manchas luminosas na membrana
     const a = (i / 5) * Math.PI * 2;
     const dot = ell(0.022, 0.022, 0.022, glowMat(0x7ff0d0, 0.85), Math.cos(a) * 0.3, 0.05, Math.sin(a) * 0.3, true); body.add(dot); accents.push(dot);
@@ -288,9 +323,15 @@ export function buildCarapaca(): CreatureRig {
   body.add(ell(0.62, 0.48, 0.85, dark, 0, 0, 0.1)); // massa do corpo
   for (let i = 0; i < 5; i++) { const p = ell(0.64 - Math.abs(i - 2) * 0.06, 0.2, 0.3, shell, 0, 0.36 - Math.abs(i - 2) * 0.04, -0.45 + i * 0.28); p.rotation.x = -0.3; body.add(p); } // dorso
   body.add(ell(0.34, 0.3, 0.2, meat, 0, -0.05, -0.62)); // peito (exposto quando as placas abrem)
+  for (const side of [-1, 1]) for (let i = 0; i < 4; i++) { const p = ell(0.2, 0.24, 0.26, shell, side * 0.52, 0.05 - i * 0.02, -0.3 + i * 0.27, true); p.rotation.set(-0.2, 0, side * 0.5); body.add(p); } // placas laterais sobrepostas
+  for (let i = 0; i < 5; i++) body.add(spike(0.05, 0.22 - Math.abs(i - 2) * 0.03, dark, 0, 0.56 - Math.abs(i - 2) * 0.05, -0.42 + i * 0.28, -0.5)); // cristas do dorso
+  for (let i = 0; i < 6; i++) body.add(ell(0.05, 0.03, 0.05, dark, (i % 2 ? 1 : -1) * (0.2 + (i % 3) * 0.1), 0.42, -0.3 + i * 0.16, true)); // calos
   const head = new THREE.Group(); head.position.set(0, 0.05, -0.8);
   head.add(ell(0.26, 0.2, 0.26, shell, 0, 0, -0.08));
   for (const side of [-1, 1]) { const horn = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.4, 7), dark); horn.position.set(side * 0.2, 0.08, -0.22); horn.rotation.set(-1.2, 0, side * 0.5); head.add(horn); }
+  for (const side of [-1, 1]) head.add(spike(0.05, 0.26, dark, side * 0.12, -0.12, -0.3, -1.9, 0, side * -0.35, 6)); // mandíbulas
+  for (let i = 0; i < 7; i++) head.add(spike(0.014, 0.07, dark, -0.09 + i * 0.03, -0.1, -0.3 + Math.abs(i - 3) * 0.01, Math.PI)); // dentes
+  head.add(ell(0.22, 0.06, 0.12, shell, 0, 0.15, -0.16)); // escudo da testa
   const accents: THREE.Mesh[] = [];
   for (const side of [-1, 1]) { const eye = ell(0.025, 0.02, 0.02, glowMat(0xffc060), side * 0.13, 0.06, -0.31, true); head.add(eye); accents.push(eye); }
   body.add(head);
@@ -333,11 +374,13 @@ export function buildBadalo(): CreatureRig {
   const bell = new THREE.Group(); bell.position.y = -4.2; body.add(bell);
   const prof: THREE.Vector2[] = [];
   for (let i = 0; i <= 14; i++) { const t = i / 14; const y = 2.2 - t * 2.2; const r = 0.35 + Math.pow(t, 1.6) * 1.25 + Math.sin(t * Math.PI) * 0.15; prof.push(new THREE.Vector2(r, y)); }
-  const shellMesh = new THREE.Mesh(new THREE.LatheGeometry(prof, 20), shell); bell.add(shellMesh);
+  const shellMesh = new THREE.Mesh(new THREE.LatheGeometry(prof, 28), shell); bell.add(shellMesh);
   const darkIn = flesh(0x241f1b, 0x5a2016, dissolve, { side: THREE.BackSide });
   const inner = new THREE.Mesh(new THREE.LatheGeometry(prof.map((p) => new THREE.Vector2(p.x * 0.93, p.y)), 16), darkIn); bell.add(inner);
   for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; const rib = ell(0.09, 1.1, 0.09, dark, Math.cos(a) * 1.05, 0.9, Math.sin(a) * 1.05, true); rib.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); bell.add(rib); }
   bell.add(ell(1.62, 0.12, 1.62, dark, 0, 0.03, 0, true)); // lábio do sino
+  for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; bell.add(spike(0.07, 0.34 + (i % 3) * 0.08, dark, Math.cos(a) * 1.5, -0.12, Math.sin(a) * 1.5, Math.PI + Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25)); } // dentes da borda
+  for (let i = 0; i < 16; i++) { const t = 0.25 + (i * 0.37) % 0.6, a = i * 2.39; const r = 0.35 + Math.pow(t, 1.6) * 1.25 + Math.sin(t * Math.PI) * 0.15; bell.add(ell(0.12, 0.08, 0.12, dark, Math.cos(a) * r, 2.2 - t * 2.2, Math.sin(a) * r, true)); } // cracas
   // órgão claro sob a borda
   const organ = new THREE.Group(); organ.position.y = 0.35; bell.add(organ);
   organ.add(ell(0.5, 0.42, 0.5, meat, 0, 0, 0));

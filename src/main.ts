@@ -637,6 +637,7 @@ if (DEBUG) {
     get plan() { const p = game.plan; return p ? { done: p.done, ok: p.ok, error: p.error, log: p.log, data: p.data } : null; },
     events() { return game.eventLog; },
     /** Decoração solta no ar (sem piso, parede, teto ou suporte por perto). */
+    rigStats() { return game.renderer.rigStats(); },
     floatingProps() { return game.renderer.propReport.filter((p) => !p.support || (p.loose?.length ?? 0) > 0); },
     clearEvents() { game.eventLog.length = 0; },
   };
