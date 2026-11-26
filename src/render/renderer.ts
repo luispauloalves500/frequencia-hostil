@@ -1435,6 +1435,12 @@ export class Renderer {
       }
       const dis = Math.max(0, Math.min(1.05, (v.dying - (c.type === "badalo" ? 2.5 : 0.7)) / (c.type === "badalo" ? 3 : 1.1)));
       rig.dissolve.value = dis;
+      // brasas e cinza subindo enquanto o corpo se desfaz
+      if (dis > 0.02 && dis < 0.95 && Math.random() < dt * (c.type === "badalo" ? 30 : 14)) {
+        const sz = c.type === "badalo" ? 1.6 : c.type === "carapaca" ? 0.7 : 0.35;
+        const by = c.type === "badalo" ? c.pos.y + 0.8 : c.pos.y + 0.2;
+        this.sparks.emit(this.tmpA.set(c.pos.x + (Math.random() - 0.5) * sz * 2, by + Math.random() * sz, c.pos.z + (Math.random() - 0.5) * sz * 2), 2, Math.random() < 0.6 ? rig.veinColor.getHex() : 0x3a3430, 0.6, 0.9, 0.05, -0.6);
+      }
       v.shadow.visible = dis < 0.5; (v.shadow.material as THREE.MeshBasicMaterial).opacity = 0.45 * (1 - ease * 0.4);
       rig.mark.visible = false;
       return;
@@ -1465,16 +1471,23 @@ export class Renderer {
       } else if (c.state === "leap") { sy = 0.8; sz = 1.35; by = 0.7; rig.legs.forEach((l) => (l.rotation.x = -0.9)); }
       else if (c.state === "skid") { by = 0.5; rig.body.rotation.x = 0.15; }
       else rig.body.rotation.x = 0;
-      rig.body.scale.set(1, sy, sz); rig.body.position.y = by + Math.sin(c.anim * 4) * 0.02;
+      const id = this.idleOf(c);
+      rig.body.scale.set(1 + id.br * 0.025, sy * (1 + id.br * 0.03), sz); rig.body.position.y = by + Math.sin(c.anim * 4) * 0.02;
       // reação ao impacto: tranco para trás, cabeça joga quando o tiro é alto
       rig.body.rotation.z = c.flinch.side * fl * 0.35;
       rig.body.position.z = fl * 0.12;
-      if (rig.head) rig.head.rotation.x = c.flinch.h > 0.55 ? -fl * 0.7 : fl * 0.2;
+      if (rig.head) {
+        // antecipação: abaixa a cabeça ao comprimir para o salto; parado, dá trancos curtos de cabeça
+        const lower = c.state === "windup" ? Math.min(1, c.stateT / 0.3) * 0.3 : 0;
+        rig.head.rotation.x = (c.flinch.h > 0.55 ? -fl * 0.7 : fl * 0.2) + lower;
+        rig.head.rotation.y = c.state === "windup" || c.state === "leap" ? 0 : id.tw * 0.35;
+      }
     } else {
       const open = c.state === "aim" && c.stateT >= 0 ? Math.min(1, c.stateT / 0.3) : 0;
       rig.crown.forEach((cr, i) => { cr.rotation.x = 0.1 + open * 0.9 + Math.sin(t * 40 + i) * open * 0.04; });
       rig.legs.forEach((l, i) => { l.rotation.x = (i === 2 ? 0.3 : 0) + Math.sin(c.anim * 2 + i * 2) * 0.35; });
       rig.body.position.y = 1.15 + Math.sin(t * 2) * 0.03;
+      { const id = this.idleOf(c); rig.body.scale.set(1 + id.br * 0.03, 1, 1 + id.br * 0.035); if (rig.head) rig.head.rotation.y = open > 0 ? 0 : id.tw * 0.4; }
       rig.body.rotation.x = -fl * 0.3 * (c.flinch.h > 0.6 ? 1.4 : 0.8);
       rig.body.rotation.z = c.flinch.side * fl * 0.25;
       if (fl > 0) rig.crown.forEach((cr, i) => { cr.rotation.x += Math.sin(t * 60 + i) * fl * 0.25; });
@@ -1516,7 +1529,18 @@ export class Renderer {
     rig.body.position.y = by + Math.sin(c.anim * 3) * 0.015;
     rig.body.rotation.x = rx - fl * 0.18;
     rig.body.rotation.z = rz + c.flinch.side * fl * 0.12;
-    if (rig.head) rig.head.rotation.x = stomp ? Math.sin(c.stateT * 14) * 0.12 : 0;
+    if (rig.head) rig.head.rotation.x = stomp ? Math.sin(c.stateT * 14) * 0.12 : charge ? 0.12 : 0;
+    const id = this.idleOf(c);
+    rig.body.scale.set(1 + id.br * 0.02, 1 + id.br * 0.025, 1);
+    if (rig.head) rig.head.rotation.y = charge || stomp ? 0 : id.tw * 0.25;
+  }
+
+  /** Respiração (−1..1) e tranco ocasional (−1..1, quase sempre 0), com fase própria por criatura. */
+  private idleOf(c: Creature) {
+    let ph = 0; for (let i = 0; i < c.id.length; i++) ph = (ph * 31 + c.id.charCodeAt(i)) % 997;
+    const t = this.time, p = ph * 0.37;
+    const tw = Math.pow(Math.max(0, Math.sin(t * 0.83 + p * 3)), 28) * (Math.sin(p * 7 + Math.floor(t * 0.83 / Math.PI)) > 0 ? 1 : -1);
+    return { br: Math.sin(t * 2.4 + p), tw };
   }
 
   /** Badalo: corre no trilho do teto; o sino desce pelo talo, crava e expõe o órgão. */
