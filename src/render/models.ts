@@ -5,7 +5,8 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 /** Caixa com cantos arredondados (bisel): tira o aspecto de blocos das armas em primeira pessoa. */
 function rbox(w: number, h: number, d: number, r = 0.014): THREE.BufferGeometry {
   const rr = Math.min(r, Math.min(w, h, d) * 0.42);
-  return rr < 0.0015 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, rr >= 0.02 ? 3 : 2, rr);
+  // peças minúsculas (LEDs, trilho) ficam caixas; bisel de 1 segmento nas pequenas, 2 nas grandes
+  return rr < 0.004 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, rr >= 0.012 ? 2 : 1, rr);
 }
 import { remapUV, signAtlas, texFish, texGlow, texSign, texVeins } from "./textures";
 

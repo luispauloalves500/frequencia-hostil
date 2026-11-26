@@ -16,16 +16,17 @@ await sleep(800);
 const out = await page.evaluate(() => {
   const R = window.__fh.game.renderer, rr = R.renderer;
   // usa a lista de render do three: intercepta renderBufferDirect por um quadro
-  const counts = {}; const orig = rr.renderBufferDirect.bind(rr);
+  const counts = {}, tris = {}; const orig = rr.renderBufferDirect.bind(rr);
   rr.renderBufferDirect = (camera, scene, geometry, material, object, group) => {
     let o = object, path = [], top = object; while (o && o !== R.scene) { if (o.name) path.push(o.name); top = o; o = o.parent; }
     const tk = top.name || (top.userData?.creature ? "criatura" : top.isGroup ? `grupo(${top.children.length})` : top.type);
     const k = `${material.type}${material.transparent ? "/T" : ""}|${path[0] ?? "-"}|top:${tk}|${geometry.type}`;
-    counts[k] = (counts[k] ?? 0) + 1; return orig(camera, scene, geometry, material, object, group);
+    const tri = (group ? group.count : geometry.index ? geometry.index.count : geometry.attributes.position.count) / 3 * (object.isInstancedMesh ? object.count : 1); counts[k] = (counts[k] ?? 0) + 1; tris[k] = (tris[k] ?? 0) + tri; return orig(camera, scene, geometry, material, object, group);
   };
-  return new Promise((res) => requestAnimationFrame(() => { for (const k in counts) delete counts[k]; requestAnimationFrame(() => { rr.renderBufferDirect = orig; res(counts); }); }));
+  return new Promise((res) => requestAnimationFrame(() => { for (const k in counts) { delete counts[k]; delete tris[k]; } requestAnimationFrame(() => { rr.renderBufferDirect = orig; res(Object.fromEntries(Object.keys(counts).map((k) => [k, [counts[k], Math.round(tris[k])]]))); }); }));
 });
-const arr = Object.entries(out).sort((a, b) => b[1] - a[1]);
-console.log("total", arr.reduce((a, b) => a + b[1], 0));
-for (const [k, v] of arr.slice(0, 60)) console.log(v, k);
+const by = process.env.BY === "tri" ? 1 : 0;
+const arr = Object.entries(out).sort((a, b) => b[1][by] - a[1][by]);
+console.log("total chamadas", arr.reduce((a, b) => a + b[1][0], 0), "triângulos", arr.reduce((a, b) => a + b[1][1], 0));
+for (const [k, v] of arr.slice(0, Number(process.env.N ?? 40))) console.log(v[0], v[1], k);
 await browser.close(); srv.stop();

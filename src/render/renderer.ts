@@ -996,7 +996,7 @@ export class Renderer {
         const mat = new THREE.SpriteMaterial({ map: TX.texSmoke(), color: 0x9fb8b0, transparent: true, opacity: 0, depthWrite: false });
         const g = new THREE.Group(); g.position.set(cl.pos.x, 0, cl.pos.z);
         const sprites: THREE.Sprite[] = [];
-        const n = this.quality === "baixa" ? 9 : 14;
+        const n = this.quality === "baixa" ? 7 : this.quality === "alta" ? 12 : 10; // menos sobreposição de pixels (névoa igual)
         for (let i = 0; i < n; i++) {
           const sp = new THREE.Sprite(mat);
           const a = (i / n) * Math.PI * 2 + Math.random() * 0.4, r = cl.radius * (0.2 + Math.random() * 0.7);
@@ -1013,7 +1013,7 @@ export class Renderer {
       v.age += dt;
       const clear = cl.clearT > 0 ? Math.min(1, cl.clearT / FOLE.clearTime * 1.4) : 0; // 1 logo após o sopro
       const lifeK = Math.min(1, v.age / 0.6) * Math.min(1, Math.max(0, (cl.life - cl.age) / 0.8));
-      v.mat.opacity = 0.55 * lifeK * (1 - clear * 0.85);
+      v.mat.opacity = 0.64 * lifeK * (1 - clear * 0.85);
       this.updateCloudSprites(v, clear, dt);
     }
     for (const [id, v] of this.cloudViews) {
