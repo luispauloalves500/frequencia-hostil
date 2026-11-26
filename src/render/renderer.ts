@@ -14,7 +14,7 @@ import { BADALO, BEACON, CARAPACA, ESTILHACO, FOLE, RISCADOR, VEU, WEAPONS } fro
 import { dirFromYawPitch } from "../core/math";
 import * as TX from "./textures";
 import { LightPool } from "./lightPool";
-import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, compactRig, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
+import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, compactGroup, compactRig, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
 import { buildExtraDecor, DM } from "./decor";
 
 export type Quality = "baixa" | "media" | "alta";
@@ -507,7 +507,7 @@ export class Renderer {
   private mergeStatic() {
     this.levelRoot.updateMatrixWorld(true);
     const dyn = new Set<THREE.Object3D>();
-    for (const g of this.decorById.values()) g.traverse((o) => dyn.add(o));
+    for (const g of this.decorById.values()) { compactGroup(g); g.traverse((o) => dyn.add(o)); }
     if (this.ferry) this.ferry.traverse((o) => dyn.add(o));
     const groups = new Map<string, { mat: THREE.Material; meshes: THREE.Mesh[] }>();
     this.levelRoot.traverse((o) => {

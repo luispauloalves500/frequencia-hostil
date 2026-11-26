@@ -17,13 +17,14 @@ export const rimMat = (color = 0x6ff0ff) => new THREE.MeshBasicMaterial({ color,
  * Junta, por material, as peças fixas filhas diretas de `root` (as animadas ficam de fora): o mesmo desenho
  * com bem menos chamadas de desenho para as armas detalhadas.
  */
-function mergeByMaterial(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
+function mergeByMaterial(root: THREE.Object3D, keep: Set<THREE.Object3D>, opaqueOnly = false) {
   // desce nos subgrupos (ferrolho, mão, cápsula): as peças de cada um se juntam entre si
-  for (const o of [...root.children]) if ((o as THREE.Group).isGroup && o.children.length > 1) mergeByMaterial(o, keep);
+  for (const o of [...root.children]) if ((o as THREE.Group).isGroup && o.children.length > 1) mergeByMaterial(o, keep, opaqueOnly);
   const groups = new Map<THREE.Material, THREE.Mesh[]>();
   for (const o of root.children) {
     const m = o as THREE.Mesh;
-    if (!m.isMesh || keep.has(m) || Array.isArray(m.material) || m.children.length) continue;
+    if (!m.isMesh || keep.has(m) || Array.isArray(m.material) || m.children.length || !m.visible || m.renderOrder !== 0) continue;
+    if (opaqueOnly && (m.material as THREE.Material).transparent) continue;
     const a = m.geometry.attributes;
     if (!a.position || !a.normal || !a.uv || Object.keys(a).length !== 3) continue;
     const arr = groups.get(m.material as THREE.Material) ?? []; arr.push(m); groups.set(m.material as THREE.Material, arr);
@@ -39,6 +40,18 @@ function mergeByMaterial(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
     const one = new THREE.Mesh(merged, mat); one.castShadow = meshes[0].castShadow; one.receiveShadow = meshes[0].receiveShadow;
     root.add(one);
   }
+}
+
+/**
+ * Decoração com id (animada ou acionada por eventos): junta por material as peças que nenhum
+ * userData referencia. Mesmo desenho, menos chamadas de desenho (placas, bombas, manômetros, bueiro).
+ */
+export function compactGroup(g: THREE.Object3D) {
+  if (g.userData.swing !== undefined) return; // anima por g.children[0]
+  const keep = new Set<THREE.Object3D>();
+  const add = (v: unknown) => { if (v instanceof THREE.Object3D) keep.add(v); else if (Array.isArray(v)) v.forEach(add); };
+  g.traverse((o) => { if (o !== g && Object.keys(o.userData).length) keep.add(o); for (const v of Object.values(o.userData)) add(v); });
+  mergeByMaterial(g, keep, true);
 }
 
 export type { CreatureRig } from "./creatures3d";
