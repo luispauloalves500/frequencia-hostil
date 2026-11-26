@@ -3,9 +3,9 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 /** Caixa com cantos arredondados (bisel): tira o aspecto de blocos das armas em primeira pessoa. */
-function rbox(w: number, h: number, d: number, r = 0.008): THREE.BufferGeometry {
-  const rr = Math.min(r, Math.min(w, h, d) * 0.3);
-  return rr < 0.0015 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 2, rr);
+function rbox(w: number, h: number, d: number, r = 0.014): THREE.BufferGeometry {
+  const rr = Math.min(r, Math.min(w, h, d) * 0.42);
+  return rr < 0.0015 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 3, rr);
 }
 import { remapUV, signAtlas, texFish, texGlow, texSign, texVeins } from "./textures";
 
@@ -89,11 +89,11 @@ export function buildAgulha(): WeaponView {
   // mãos/luvas
   const glove = new THREE.MeshStandardMaterial({ color: 0x23211f, roughness: 0.9 });
   const sleeve = new THREE.MeshStandardMaterial({ color: 0x3d4a3a, roughness: 0.95 });
-  add(root, rbox(0.075, 0.07, 0.11), glove, 0, -0.1, 0.13, 0.3);
-  add(root, rbox(0.09, 0.09, 0.32), sleeve, 0.02, -0.15, 0.33, 0.25);
+  add(root, rbox(0.075, 0.07, 0.11, 0.032), glove, 0, -0.1, 0.13, 0.3);
+  add(root, rbox(0.09, 0.09, 0.32, 0.032), sleeve, 0.02, -0.15, 0.33, 0.25);
   const hand = new THREE.Group(); hand.position.set(-0.03, -0.03, -0.24); root.add(hand);
-  add(hand, rbox(0.07, 0.06, 0.1), glove, 0, 0, 0, 0, 0, 0.4);
-  add(hand, rbox(0.085, 0.085, 0.36), sleeve, -0.07, -0.09, 0.19, 0.1, -0.55, 0.2);
+  add(hand, rbox(0.07, 0.06, 0.1, 0.032), glove, 0, 0, 0, 0, 0, 0.4);
+  add(hand, rbox(0.085, 0.085, 0.36, 0.032), sleeve, -0.07, -0.09, 0.19, 0.1, -0.55, 0.2);
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.01, -0.54); root.add(muzzle);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texGlow(), color: 0x8ff4ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   flash.scale.setScalar(0.18); flash.position.copy(muzzle.position); flash.visible = false; root.add(flash);
@@ -226,7 +226,7 @@ export function buildFoleModel(): WeaponView {
   // receptor e coronha curta
   add(root, rbox(0.085, 0.1, 0.26), body, 0, 0, 0.06);
   add(root, rbox(0.06, 0.13, 0.08), body, 0, -0.1, 0.16, 0.35);
-  add(root, rbox(0.07, 0.07, 0.14), body, 0, -0.01, 0.26);
+  add(root, rbox(0.07, 0.07, 0.14, 0.032), body, 0, -0.01, 0.26);
   // fole sanfonado (anima no disparo)
   const bellows = new THREE.Group(); bellows.position.set(0, 0.005, -0.12); root.add(bellows);
   for (let i = 0; i < 5; i++) add(bellows, new THREE.CylinderGeometry(0.05 + (i % 2) * 0.012, 0.05 + (i % 2) * 0.012, 0.028, 8), leather, 0, 0, -i * 0.026, Math.PI / 2);
@@ -249,10 +249,10 @@ export function buildFoleModel(): WeaponView {
   add(hand, rbox(0.07, 0.05, 0.1), body, 0, 0, 0);
   const glove = new THREE.MeshStandardMaterial({ color: 0x23211f, roughness: 0.9 });
   const sleeve = new THREE.MeshStandardMaterial({ color: 0x3d4a3a, roughness: 0.95 });
-  add(hand, rbox(0.08, 0.07, 0.1), glove, -0.02, -0.04, 0, 0, 0, 0.4);
-  add(hand, rbox(0.085, 0.085, 0.36), sleeve, -0.08, -0.09, 0.18, 0.1, -0.55, 0.2);
-  add(root, rbox(0.075, 0.07, 0.11), glove, 0, -0.11, 0.17, 0.3);
-  add(root, rbox(0.09, 0.09, 0.32), sleeve, 0.02, -0.16, 0.37, 0.25);
+  add(hand, rbox(0.08, 0.07, 0.1, 0.032), glove, -0.02, -0.04, 0, 0, 0, 0.4);
+  add(hand, rbox(0.085, 0.085, 0.36, 0.032), sleeve, -0.08, -0.09, 0.18, 0.1, -0.55, 0.2);
+  add(root, rbox(0.075, 0.07, 0.11, 0.032), glove, 0, -0.11, 0.17, 0.3);
+  add(root, rbox(0.09, 0.09, 0.32, 0.032), sleeve, 0.02, -0.16, 0.37, 0.25);
   const coils = [...vents];
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.005, -0.52); root.add(muzzle);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texGlow(), color: 0xffc080, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
