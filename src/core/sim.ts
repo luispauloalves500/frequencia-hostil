@@ -1,4 +1,4 @@
-import { BEACON, DIFFICULTY, FOLE, NEEDLE_MARK, PLAYER, RISCADOR, ESTILHACO, VEU, WEAPONS, type Difficulty, type WeaponId } from "../config";
+import { BEACON, DIFFICULTY, FOLE, NEEDLE_MARK, PLAYER, RISCADOR, ESTILHACO, TEAR, VEU, WEAPONS, type Difficulty, type WeaponId } from "../config";
 import { Beacon } from "./beacon";
 import { Creature, type CreatureCtx } from "./creatures";
 import { dirFromYawPitch, distXZ, rng, type V3 } from "./math";
@@ -25,19 +25,22 @@ export const emptyFrame = (): FrameInput => ({ ...emptyInput(), fireHeld: false,
 export interface SimEvent { type: string; [k: string]: any }
 
 export interface Interactable { id: string; pos: V3; radius: number; prompt: string; enabled: () => boolean; use: () => void; lockedPrompt?: () => string | null }
-export type PickupKind = "dardos" | "curativo" | "fole";
+export type PickupKind = "dardos" | "curativo" | "fole" | "tear";
 /** munição de cada caixa (o pictograma identifica a arma) */
-export const PICKUP_WEAPON: Partial<Record<PickupKind, WeaponId>> = { dardos: "agulha", fole: "fole" };
+export const PICKUP_WEAPON: Partial<Record<PickupKind, WeaponId>> = { dardos: "agulha", fole: "fole", tear: "tear" };
 export interface Pickup { id: string; pos: V3; kind: PickupKind; amount: number; taken: boolean }
 /** Nuvem do Véu: encobre a visão; o sopro do Fole a afasta por 3 s. */
 export interface Cloud { id: number; owner: string; pos: V3; radius: number; age: number; life: number; clearT: number }
-export interface RunStats { kills: number; shots: number; hits: number; deaths: number; damageTaken: number; time: number; pulses: number; foleShots: number; foleHits: number; sopros: number }
+export interface RunStats { kills: number; shots: number; hits: number; deaths: number; damageTaken: number; time: number; pulses: number; foleShots: number; foleHits: number; sopros: number; tearShots: number; tearHits: number; tearLines: number }
+/** Linha do Tear no piso: 4 m transversais, 4 s; a primeira passagem de cada comum causa 35 e lentidão. */
+export interface TearLine { id: number; a: V3; b: V3; y: number; life: number; hit: string[] }
 export interface Trigger { id: string; min: V3; max: V3; once: boolean; fired: boolean; onEnter: () => void }
 export interface Latch { id: string; pos: V3; open: boolean; onOpen: () => void }
 export interface Projectile { id: number; pos: V3; vel: V3; dmg: number; life: number; alive: boolean }
 
 let projId = 1;
 let cloudId = 1;
+let lineId = 1;
 
 export class Sim {
   t = 0;
@@ -49,6 +52,9 @@ export class Sim {
   creatures: Creature[] = [];
   projectiles: Projectile[] = [];
   clouds: Cloud[] = [];
+  tearLines: TearLine[] = [];
+  /** prévia da linha do Tear (ponto no piso e validade) */
+  tearAim: { a: V3; b: V3; valid: boolean } | null = null;
   /** estado numérico lido pela apresentação (progresso de comporta etc.); não é gravado */
   vars: Record<string, number> = {};
   interactables: Interactable[] = [];
@@ -68,7 +74,7 @@ export class Sim {
   focus: Interactable | null = null;
   lastWindupStart = -10;
   beaconAim: { pos: V3; valid: boolean } | null = null;
-  stats: RunStats = { kills: 0, shots: 0, hits: 0, deaths: 0, damageTaken: 0, time: 0, pulses: 0, foleShots: 0, foleHits: 0, sopros: 0 };
+  stats: RunStats = { kills: 0, shots: 0, hits: 0, deaths: 0, damageTaken: 0, time: 0, pulses: 0, foleShots: 0, foleHits: 0, sopros: 0, tearShots: 0, tearHits: 0, tearLines: 0 };
   rand: () => number;
   damageMul = 1;
   playTimeBase = 0;
@@ -106,7 +112,7 @@ export class Sim {
     this.nav = new NavGrid(this.world);
     this.nav.build();
     this.creatures.length = 0;
-    this.projectiles = []; this.clouds = []; this.vars = {};
+    this.projectiles = []; this.clouds = []; this.tearLines = []; this.tearAim = null; this.vars = {};
     this.interactables = []; this.pickups = []; this.triggers = []; this.latches = [];
     this.ctx.world = this.world; this.ctx.nav = this.nav;
     this.alive = true; this.done = false; this.healT = -1; this.lastWindupStart = -10;
@@ -119,7 +125,7 @@ export class Sim {
       this.deathsBase = cp.deaths ?? 0;
       // contadores do capítulo continuam de onde o registro parou (resultado não zera ao Continuar)
       const b = cp.stats;
-      if (b) { this.stats.kills = b.kills ?? 0; this.stats.shots = b.shots ?? 0; this.stats.hits = b.hits ?? 0; this.stats.pulses = b.pulses ?? 0; this.stats.damageTaken = b.damageTaken ?? 0; this.stats.foleShots = b.foleShots ?? 0; this.stats.foleHits = b.foleHits ?? 0; this.stats.sopros = b.sopros ?? 0; }
+      if (b) { this.stats.kills = b.kills ?? 0; this.stats.shots = b.shots ?? 0; this.stats.hits = b.hits ?? 0; this.stats.pulses = b.pulses ?? 0; this.stats.damageTaken = b.damageTaken ?? 0; this.stats.foleShots = b.foleShots ?? 0; this.stats.foleHits = b.foleHits ?? 0; this.stats.sopros = b.sopros ?? 0; this.stats.tearShots = b.tearShots ?? 0; this.stats.tearHits = b.tearHits ?? 0; this.stats.tearLines = b.tearLines ?? 0; }
     } else {
       this.hp = PLAYER.maxHp; this.medkits = 1; this.flags = {}; this.arsenal = new Arsenal(); this.beacon = new Beacon();
     }
@@ -135,7 +141,7 @@ export class Sim {
       phase: this.level.id, point, hp: Math.ceil(this.hp), medkits: this.medkits,
       weapons: this.arsenal.snapshot(), current: this.arsenal.current, hasBeacon: this.beacon.owned,
       objective: this.objective, flags: { ...this.flags }, difficulty: this.difficulty, playTime: this.playTimeBase + this.stats.time, deaths: this.deathsBase + this.stats.deaths,
-      stats: { kills: this.stats.kills, shots: this.stats.shots, hits: this.stats.hits, pulses: this.stats.pulses, damageTaken: Math.round(this.stats.damageTaken), foleShots: this.stats.foleShots, foleHits: this.stats.foleHits, sopros: this.stats.sopros },
+      stats: { kills: this.stats.kills, shots: this.stats.shots, hits: this.stats.hits, pulses: this.stats.pulses, damageTaken: Math.round(this.stats.damageTaken), foleShots: this.stats.foleShots, foleHits: this.stats.foleHits, sopros: this.stats.sopros, tearShots: this.stats.tearShots, tearHits: this.stats.tearHits, tearLines: this.stats.tearLines },
     };
   }
 
@@ -152,12 +158,14 @@ export class Sim {
   spawnCreature(type: CreatureType, pos: V3, opts: Partial<Creature> = {}): Creature {
     const c = new Creature(type, { ...pos }, opts);
     this.creatures.push(c);
-    const active = this.creatures.filter((x) => x.alive).length;
+    const active = this.activeCommons();
     this.maxActiveSeen = Math.max(this.maxActiveSeen, active);
     this.emit({ type: "spawn", id: c.id, ctype: type, pos: { ...pos } });
     return c;
   }
-  activeCommons() { return this.creatures.filter((c) => c.alive).length; }
+  /** Encerra uma criatura (fim de luta: reforços cancelados). */
+  forceKill(c: Creature) { if (c.alive) c.damage(c.hp + 1, this.ctx); }
+  activeCommons() { let n = 0; for (const c of this.creatures) if (c.alive && !c.boss) n++; return n; }
   creature(id: string) { return this.creatures.find((c) => c.id === id); }
 
   hurtLog: { t: number; src: string; dmg: number }[] = [];
@@ -223,11 +231,17 @@ export class Sim {
   }
 
   private doFire(mode: "primary" | "alt") {
+    // Tear: posicionar a linha num vão (sem piso) conserva as três cargas
+    if (mode === "alt" && this.arsenal.current === "tear" && this.arsenal.state === "ready" && this.arsenal.cooldown <= 0 && (this.arsenal.ammo()?.mag ?? 0) >= WEAPONS.tear.altCost) {
+      const aim = this.computeTearAim();
+      if (!aim || !aim.valid) { this.arsenal.cooldown = 0.25; this.emit({ type: "tearInvalid" }); return; }
+    }
     const r = this.arsenal.fire(mode);
     if (r === "none") return;
     if (r === "dry") { this.emit({ type: "dry", mode, weapon: this.arsenal.current }); return; }
     const wid = this.arsenal.current!;
     if (wid === "fole") { if (r === "shot") this.fireFole(); else this.sopro(); return; }
+    if (wid === "tear") { if (r === "shot") this.fireTear(); else this.placeTearLine(); return; }
     this.stats.shots++;
     const tr = this.traceShot();
     const eye = this.player.eyePos();
@@ -273,6 +287,88 @@ export class Sim {
       hits.push({ id: c.id, dmg: d, killed: !c.alive });
     }
     this.emit({ type: "shot", weapon: "fole", from: eye, to: pellets[0].to, pellets, hits, hit: hits[0]?.id ?? null, dmg: hits.reduce((x, h) => x + h.dmg, 0), killed: hits.some((h) => h.killed), marked: false, normal: pellets[0].normal });
+  }
+
+  /** Tear primário: fio de luz que perfura um segundo comum alinhado. */
+  private fireTear() {
+    const eye = this.player.eyePos();
+    const dir = dirFromYawPitch(this.player.yaw, this.player.pitch);
+    const wh = this.world.raycast(eye, dir, WEAPONS.tear.range, ["solid", "grate", "ceiling"]);
+    const wallT = wh ? wh.t : WEAPONS.tear.range;
+    const hits: { c: Creature; t: number }[] = [];
+    for (const c of this.creatures) {
+      if (!c.alive) continue;
+      const r = c.radius;
+      const bx = { id: "", kind: "solid", mat: "", enabled: true, min: { x: c.pos.x - r, y: c.pos.y, z: c.pos.z - r }, max: { x: c.pos.x + r, y: c.pos.y + c.height, z: c.pos.z + r } } as Box;
+      const h = rayBox(eye, dir, bx, wallT);
+      if (h) hits.push({ c, t: h.t });
+    }
+    hits.sort((a, b) => a.t - b.t);
+    const take = hits.slice(0, TEAR.pierce);
+    this.stats.tearShots++;
+    const out: { id: string; dmg: number; killed: boolean; at: V3 }[] = [];
+    for (const { c, t } of take) {
+      const at = { x: eye.x + dir.x * t, y: eye.y + dir.y * t, z: eye.z + dir.z * t };
+      const before = c.hp;
+      c.damage(WEAPONS.tear.damage, this.ctx, eye, at);
+      this.stats.tearHits++;
+      if (!c.alive) this.stats.kills++;
+      out.push({ id: c.id, dmg: before - Math.max(0, c.hp), killed: !c.alive, at });
+    }
+    // o fio atravessa: para no segundo alvo ou na parede
+    const endT = take.length >= TEAR.pierce ? take[take.length - 1].t : wallT;
+    const to = { x: eye.x + dir.x * endT, y: eye.y + dir.y * endT, z: eye.z + dir.z * endT };
+    this.emit({ type: "shot", weapon: "tear", from: eye, to, hits: out, hit: out[0]?.id ?? null, dmg: out.reduce((a, h) => a + h.dmg, 0), killed: out.some((h) => h.killed), marked: false, normal: take.length >= TEAR.pierce ? null : wh?.normal ?? null, mul: take[0]?.c.lastMul ?? 1 });
+  }
+
+  /** Ponto da linha do Tear: faixa transversal de 4 m no piso; inválida sobre vão, grade ou desnível. */
+  computeTearAim(): { a: V3; b: V3; valid: boolean } | null {
+    const eye = this.player.eyePos();
+    const dir = dirFromYawPitch(this.player.yaw, this.player.pitch);
+    const h = this.world.raycast(eye, dir, TEAR.lineRange, ["solid", "grate", "ceiling"]);
+    if (!h) return null;
+    const p = { x: eye.x + dir.x * h.t, y: eye.y + dir.y * h.t, z: eye.z + dir.z * h.t };
+    const fx = -Math.sin(this.player.yaw), fz = -Math.cos(this.player.yaw);
+    const px = -fz, pz = fx, half = TEAR.lineLength / 2;
+    const a = { x: p.x - px * half, y: p.y, z: p.z - pz * half }, b = { x: p.x + px * half, y: p.y, z: p.z + pz * half };
+    let valid = h.normal.y > 0.7 && h.box.kind !== "grate";
+    if (valid) for (const q of [a, b, { x: (a.x + p.x) / 2, y: 0, z: (a.z + p.z) / 2 }, { x: (b.x + p.x) / 2, y: 0, z: (b.z + p.z) / 2 }]) {
+      const f = this.nav.floorAt(q.x, q.z);
+      if (Number.isNaN(f) || Math.abs(f - p.y) > 0.3) { valid = false; break; }
+    }
+    return { a, b, valid };
+  }
+
+  private placeTearLine() {
+    const aim = this.computeTearAim();
+    if (!aim) return;
+    const l: TearLine = { id: lineId++, a: aim.a, b: aim.b, y: aim.a.y, life: TEAR.lineTime, hit: [] };
+    this.tearLines.push(l);
+    this.stats.tearLines++;
+    this.emit({ type: "tearLine", id: l.id, a: { ...l.a }, b: { ...l.b }, y: l.y });
+  }
+
+  private updateTearLines(dt: number) {
+    for (const l of this.tearLines) {
+      l.life -= dt;
+      const ax = l.a.x, az = l.a.z, bx = l.b.x - ax, bz = l.b.z - az, L2 = bx * bx + bz * bz;
+      for (const c of this.creatures) {
+        if (!c.alive || c.boss || c.type === "veu" || l.hit.includes(c.id)) continue;
+        if (Math.abs(c.pos.y - l.y) > 0.6) continue;
+        const t = Math.max(0, Math.min(1, ((c.pos.x - ax) * bx + (c.pos.z - az) * bz) / L2));
+        const d = Math.hypot(c.pos.x - (ax + bx * t), c.pos.z - (az + bz * t));
+        if (d > TEAR.lineWidth + c.radius * 0.5) continue;
+        l.hit.push(c.id);
+        c.damage(TEAR.lineDamage, this.ctx, undefined, c.center());
+        c.slowT = TEAR.lineSlow;
+        if (!c.alive) this.stats.kills++;
+        this.emit({ type: "tearLineHit", id: l.id, cid: c.id, pos: c.center(), killed: !c.alive });
+      }
+    }
+    if (this.tearLines.length && this.tearLines.some((l) => l.life <= 0)) {
+      for (const l of this.tearLines) if (l.life <= 0) this.emit({ type: "tearLineEnd", id: l.id });
+      this.tearLines = this.tearLines.filter((l) => l.life > 0);
+    }
   }
 
   /** Sopro do Fole: empurra comuns leves por até 4 m e afasta a névoa do Véu por 3 s. Sem dano. */
@@ -391,6 +487,8 @@ export class Sim {
     this.ctx.others = this.creatures;
     this.nav.ensure();
     for (const c of this.creatures) c.update(dt, this.ctx);
+    if (this.tearLines.length) this.updateTearLines(dt);
+    this.tearAim = this.alive && this.arsenal.current === "tear" && this.arsenal.state === "ready" ? this.computeTearAim() : null;
     // nuvens do Véu
     if (this.clouds.length) {
       for (const cl of this.clouds) { cl.age += dt; cl.clearT = Math.max(0, cl.clearT - dt); }

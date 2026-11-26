@@ -15,6 +15,16 @@ export function defaultF2Entry(difficulty: Difficulty): Checkpoint {
   return { phase: "F2", point: "F2-A", hp: 100, medkits: 1, weapons: { agulha: { mag: WEAPONS.agulha.mag, reserve: 72 } }, current: "agulha", hasBeacon: true, objective: "", flags: {}, difficulty, playTime: 0, deaths: 0 };
 }
 
+/** Registro de entrada da F3 a partir do fim da F2: o mesmo contrato da F1 → F2 (o Fole vai junto). */
+export function f3EntryFromF2(f2End: Checkpoint): Checkpoint {
+  return { ...f2End, phase: "F3", point: "F3-A", objective: "", flags: {}, playTime: 0, deaths: 0, stats: undefined, weapons: JSON.parse(JSON.stringify(f2End.weapons)) };
+}
+
+/** Repetição da F3 sem registro da F2: o arsenal padrão de quem termina a F2. */
+export function defaultF3Entry(difficulty: Difficulty): Checkpoint {
+  return { phase: "F3", point: "F3-A", hp: 100, medkits: 1, weapons: { agulha: { mag: WEAPONS.agulha.mag, reserve: 72 }, fole: { mag: WEAPONS.fole.mag, reserve: 16 } }, current: "agulha", hasBeacon: true, objective: "", flags: {}, difficulty, playTime: 0, deaths: 0 };
+}
+
 /** Saves da prévia antiga ("F2P") passam a abrir a F2 real no começo, mantendo o inventário. */
 export function migrateCheckpoint(cp: Checkpoint): Checkpoint {
   return cp.phase === "F2P" ? f2EntryFromF1(cp) : cp;

@@ -177,7 +177,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const FOLE_MAG = 8;
 const WHITE = new THREE.Color(0xffffff);
 
-interface CreatureView { rig: CreatureRig; c: Creature; shadow: THREE.Mesh; dying: number }
+interface CreatureView { rig: CreatureRig; c: Creature; shadow: THREE.Mesh; dying: number; dropY?: number }
 
 export class Renderer {
   renderer: THREE.WebGLRenderer;
@@ -710,8 +710,8 @@ export class Renderer {
         }
         case "kill": {
           const p = new THREE.Vector3(e.pos.x, e.pos.y, e.pos.z);
-          this.shards.emit(p, 40, 0xe0d8c8, 5, 1.2, 0.07, 10);
-          this.sparks.emit(p, 22, e.ctype === "estilhaco" ? 0xffa060 : 0x7ff6ff, 4, 0.6, 0.18, 1);
+          this.shards.emit(p, 26, 0x4a2e28, 3, 0.9, 0.06, 10); // respingo escuro (orgânico)
+          this.sparks.emit(p, 10, e.ctype === "estilhaco" || e.ctype === "carapaca" ? 0xffa060 : e.ctype === "veu" ? 0x7ff0d0 : 0x7ff6ff, 2, 0.5, 0.12, 1);
           this.shake = Math.max(this.shake, 0.15);
           break;
         }
@@ -964,7 +964,7 @@ export class Renderer {
       this.animateCreature(v, sim, dt);
     }
     for (const [id, v] of this.creatures) {
-      if (!seen.has(id)) { v.rig.root.removeFromParent(); v.shadow.removeFromParent(); v.rig.beam?.removeFromParent(); for (const pc of v.rig.pieces) pc.removeFromParent(); this.creatures.delete(id); }
+      if (!seen.has(id)) { v.rig.root.removeFromParent(); v.shadow.removeFromParent(); v.rig.beam?.removeFromParent(); this.creatures.delete(id); }
     }
 
     // projéteis
@@ -1062,45 +1062,43 @@ export class Renderer {
     v.shadow.position.set(c.pos.x, (Number.isNaN(sim.nav.floorAt(c.pos.x, c.pos.z)) ? c.pos.y : sim.nav.floorAt(c.pos.x, c.pos.z)) + 0.02, c.pos.z);
     let flash = 0;
     for (const h of this.hitFlashes) if (h.c === c.id) { flash = Math.max(flash, h.t / 0.1); }
-    // veias pulsando; um acerto acende o cristal inteiro por um instante
-    const prepGlow = c.state === "windup" || c.state === "swell" || (c.state === "aim" && c.stateT >= 0) ? 1 : 0;
-    const pulse = 1.35 + Math.sin(t * 2.2 + c.pos.x) * 0.35 + prepGlow * (0.8 + Math.sin(t * 25) * 0.3);
-    for (const m of rig.mats) {
-      m.emissive.copy(rig.veinColor).lerp(WHITE, flash * 0.85);
-      m.emissiveIntensity = pulse + flash * 3.5;
-    }
+    // pele fosca: um acerto acende a carne por um instante (emissivo), os detalhes pulsam devagar
+    const prepGlow = c.state === "windup" || c.state === "swell" || c.state === "charge" || (c.state === "aim" && c.stateT >= 0) ? 1 : 0;
+    for (const m of rig.mats) { m.emissive.setRGB(flash * 0.55, flash * 0.4, flash * 0.35); }
     for (let i = this.hitFlashes.length - 1; i >= 0; i--) if ((this.hitFlashes[i].t -= dt / Math.max(1, this.creatures.size)) <= 0) this.hitFlashes.splice(i, 1);
     rig.mark.visible = c.markT > 0 && c.alive;
     if (rig.mark.visible) rig.mark.rotation.y += dt * 3;
     if (!c.alive) {
-      // morte: o cristal se estilhaça, as peças voam, giram, quicam e somem
-      if (v.dying === 0) this.shatter(v, sim);
+      // morte orgânica: as pernas cedem, o corpo desaba no piso e se desfaz (borda quente), sem peças voando
+      if (v.dying === 0) { for (const a of rig.accents) a.visible = false; for (const r of rig.rims) r.visible = false; if (rig.beam) rig.beam.visible = false; v.dropY = rig.body.position.y; }
       v.dying += dt;
-      const fade = Math.max(0, 1 - Math.max(0, v.dying - 1.1) / 0.9);
-      for (const pc of rig.pieces) {
-        const u = pc.userData;
-        if (!u.vel) continue;
-        u.vel.y -= 9.8 * dt;
-        pc.position.addScaledVector(u.vel, dt);
-        if (pc.position.y < u.floor + 0.04) { pc.position.y = u.floor + 0.04; u.vel.y *= -0.3; u.vel.x *= 0.6; u.vel.z *= 0.6; u.spin.multiplyScalar(0.6); }
-        pc.rotation.x += u.spin.x * dt; pc.rotation.y += u.spin.y * dt; pc.rotation.z += u.spin.z * dt;
-        pc.scale.copy(u.s0).multiplyScalar(Math.max(0.001, fade));
+      const k = Math.min(1, v.dying / 0.55), ease = k * k * (3 - 2 * k);
+      if (c.type === "veu") { rig.body.position.y = v.dropY! * (1 - ease) + 0.15 * ease; rig.body.rotation.x = ease * 1.2; if (rig.sac) rig.sac.scale.set(1 - ease * 0.5, 0.8 * (1 - ease * 0.6), 1 - ease * 0.5); }
+      else if (c.type === "badalo") { rig.body.rotation.z = Math.sin(v.dying * 3) * 0.05 * (1 - k); }
+      else {
+        const floorK = c.type === "estilhaco" ? 0.3 : c.type === "carapaca" ? 0.45 : 0.18;
+        rig.body.position.y = v.dropY! * (1 - ease) + floorK * ease;
+        rig.body.rotation.z = (c.flinch.side || 1) * ease * (c.type === "estilhaco" ? 1.3 : 0.25);
+        rig.body.rotation.x = ease * (c.type === "estilhaco" ? 0.4 : 0.15);
+        rig.body.scale.set(1 + ease * 0.08, 1 - ease * 0.25, 1);
+        for (const l of rig.legs) { l.rotation.z += ((l.position.x >= 0 ? 1.45 : -1.45) - l.rotation.z) * Math.min(1, dt * 8); l.position.y = 0.62 * (1 - ease) + floorK * ease; }
       }
-      for (const m of rig.mats) m.emissiveIntensity = Math.max(0, 2.5 - v.dying * 2);
-      if (rig.beam) rig.beam.visible = false;
-      v.shadow.visible = false;
+      const dis = Math.max(0, Math.min(1.05, (v.dying - (c.type === "badalo" ? 2.5 : 0.7)) / (c.type === "badalo" ? 3 : 1.1)));
+      rig.dissolve.value = dis;
+      v.shadow.visible = dis < 0.5; (v.shadow.material as THREE.MeshBasicMaterial).opacity = 0.45 * (1 - ease * 0.4);
       rig.mark.visible = false;
       return;
     }
+    rig.dissolve.value = 0;
     rig.root.scale.setScalar(c.state === "emerging" ? Math.min(1, 0.3 + c.stateT) : 1);
     const prep = c.state === "windup" || (c.state === "aim" && c.stateT >= 0);
     const vib = prep ? Math.sin(t * 90) * 0.06 : 0;
     for (let i = 0; i < rig.rims.length; i++) {
       const r = rig.rims[i];
       const m = r.material as THREE.MeshBasicMaterial;
-      m.opacity = prep ? 0.95 : 0.35 + Math.sin(t * 3 + i) * 0.1;
+      m.opacity = prep ? 1 : 0.25 + Math.sin(t * 2.2 + i + c.pos.x) * 0.12;
       r.scale.set(1 + vib, 1 + (prep ? Math.abs(vib) * 3 : 0), 1);
-      m.color.set(c.type === "riscador" ? (prep ? 0xffffff : 0x6ff0ff) : (prep ? 0xffe0a0 : 0xffb070));
+      m.color.copy(rig.veinColor).multiplyScalar(prep ? 1.6 + prepGlow * 0.2 : 0.9);
     }
     const fl = c.flinch.t > 0 ? c.flinch.t / 0.32 : 0;
     if (c.type === "veu") { this.animateVeu(v, fl); return; }
@@ -1144,26 +1142,6 @@ export class Renderer {
         (beam.material as THREE.MeshBasicMaterial).opacity = 0.45 + k * 0.5 + Math.sin(t * 50) * 0.1;
       }
     }
-  }
-
-  /** Solta as peças do corpo no mundo com velocidade e giro (vetores criados uma vez por morte). */
-  private shatter(v: CreatureView, sim: Sim) {
-    const { rig, c } = v;
-    rig.root.updateMatrixWorld(true);
-    const cx = c.pos.x, cz = c.pos.z, cy = c.pos.y + c.height * 0.5;
-    const f0 = sim.nav.floorAt(cx, cz), floor = Number.isNaN(f0) ? c.pos.y : f0;
-    for (const pc of rig.pieces) {
-      this.dynRoot.attach(pc);
-      const dx = pc.position.x - cx, dy = pc.position.y - cy, dz = pc.position.z - cz;
-      const l = Math.hypot(dx, dy, dz) || 1;
-      const sp = 2 + Math.random() * 3;
-      pc.userData.vel = new THREE.Vector3((dx / l) * sp + (Math.random() - 0.5), Math.abs(dy / l) * sp + 1.5 + Math.random() * 2, (dz / l) * sp + (Math.random() - 0.5));
-      pc.userData.spin = new THREE.Vector3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14);
-      pc.userData.s0 = pc.scale.clone();
-      pc.userData.floor = floor;
-    }
-    for (const r of rig.rims) r.visible = false;
-    if (rig.core) rig.core.visible = false;
   }
 
   /** Véu: a fita ondula no shader, o saco incha antes de soltar a névoa e murcha depois. */

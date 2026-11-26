@@ -1,6 +1,6 @@
 import { ENCOUNTER } from "../config";
 
-export type CreatureType = "riscador" | "estilhaco" | "veu";
+export type CreatureType = "riscador" | "estilhaco" | "veu" | "carapaca" | "badalo";
 export interface WaveEntry { type: CreatureType; door: string }
 
 export interface ArenaHooks {

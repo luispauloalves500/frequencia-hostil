@@ -121,7 +121,62 @@ export const FOLE = {
   clearRange: 9,
 };
 
+/** Tear (F3): fio que perfura um segundo comum alinhado; linha no piso (4 m, 4 s): 35 + lentidão 1 s na 1ª passagem. */
+export const TEAR = {
+  pierce: 2,
+  lineLength: 4,
+  lineTime: 4,
+  lineDamage: 35,
+  lineSlow: 1,
+  lineRange: 16,
+  lineWidth: 0.55,
+};
+
+/** Carapaça (F3): bate as patas 1 s, investe em linha (22). No batente, abre as placas por 2,5 s. */
+export const CARAPACA = {
+  hp: 180,
+  damage: 22,
+  speed: 2.4,
+  stompTime: 1.0,
+  chargeSpeed: 9.5,
+  chargeMax: 16,
+  openTime: 2.5,
+  stunTime: 0.8,
+  recover: 1.2,
+  frontMul: 0.2,
+  triggerRange: 14,
+  sightRange: 24,
+  radius: 0.8,
+  height: 1.5,
+};
+
+/** Badalo (chefe F3): sino pendurado sobre o poço. Carcaça 10%; órgão exposto após cair numa placa. */
+export const BADALO = {
+  hp: 720,
+  shellMul: 0.1,
+  tiltTime: 1.2,
+  dropTime: 0.35,
+  impactRadius: 3,
+  impactDamage: 25,
+  stuckTime: 3,
+  riseTime: 1.5,
+  cycleGap: 3,
+  hearRadius: 7,
+  plateRadius: 1.7,
+  waveDamage: 16,
+  waveWarn: 1.2,
+  waveSpeed: 7,
+  waveMax: 16,
+  waveBand: 0.7,
+  hangY: 4.2,
+  moveSpeed: 3.2,
+  radius: 1.6,
+  height: 2.2,
+  maxCommons: 2,
+};
+
 export const ENCOUNTER = {
+  maxActiveF3: 8,
   maxActiveF1: 6,
   entryTelegraph: 1.0,
   minSpawnDistance: 6,

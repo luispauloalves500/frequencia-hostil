@@ -18,7 +18,7 @@ export interface Checkpoint {
   /** quedas acumuladas no capítulo (opcional para saves antigos) */
   deaths?: number;
   /** contadores do capítulo até este registro (resultado não zera ao Continuar) */
-  stats?: { kills?: number; shots?: number; hits?: number; pulses?: number; damageTaken?: number; foleShots?: number; foleHits?: number; sopros?: number };
+  stats?: { kills?: number; shots?: number; hits?: number; pulses?: number; damageTaken?: number; foleShots?: number; foleHits?: number; sopros?: number; tearShots?: number; tearHits?: number; tearLines?: number };
 }
 
 export interface SaveData {

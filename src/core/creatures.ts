@@ -1,4 +1,4 @@
-import { ENCOUNTER, ESTILHACO, FOLE, RISCADOR, VEU } from "../config";
+import { BADALO, CARAPACA, ENCOUNTER, ESTILHACO, FOLE, RISCADOR, VEU } from "../config";
 import { angleDiff, distXZ, yawTo, type V3 } from "./math";
 import type { NavGrid } from "./nav";
 import type { World } from "./world";
@@ -29,7 +29,16 @@ export interface CreatureCtx {
 export type CState =
   | "emerging" | "idle" | "patrol" | "chase" | "circle" | "windup" | "leap" | "skid"
   | "lured" | "search" | "aim" | "reposition" | "hop" | "dead"
-  | "swell" | "recover" | "drift" | "pushed";
+  | "swell" | "recover" | "drift" | "pushed"
+  // Carapaça
+  | "stomp" | "charge" | "open" | "stun"
+  // Badalo
+  | "hang" | "intro" | "tilt" | "drop" | "stuck" | "rise" | "waveWarn" | "wave";
+
+const STATS: Record<CreatureType, { hp: number; radius: number; height: number; speed: number }> = {
+  riscador: RISCADOR, estilhaco: ESTILHACO, veu: VEU, carapaca: CARAPACA,
+  badalo: { hp: BADALO.hp, radius: BADALO.radius, height: BADALO.height, speed: BADALO.moveSpeed },
+};
 
 let nextId = 1;
 
@@ -78,26 +87,45 @@ export class Creature {
   flinch = { h: 0.5, side: 0, t: 0, n: 0 };
   pushFrom: V3 = { x: 0, y: 0, z: 0 };
   pushDir: V3 = { x: 0, y: 0, z: 0 };
+  /** Carapaça: direção travada da investida e distância percorrida */
+  chargeDir: V3 = { x: 0, y: 0, z: -1 };
+  chargeDist = 0;
+  /** último multiplicador de dano aplicado (placa fechada, carcaça) — para a resposta visual */
+  lastMul = 1;
+  /** Badalo: placas ressonantes, ponto travado e controle de ciclo */
+  plates: V3[] = [];
+  lockPos: V3 | null = null;
+  lockSrc: "lia" | "baliza" | "demo" = "lia";
+  locked = false;
+  altWave = false;
+  halfDone = false;
+  waveR = 0;
+  waveHit = false;
+  stuckOn = -1;
+  cycles = 0;
   private resume: CState = "chase";
 
   constructor(public type: CreatureType, public pos: V3, opts: Partial<Creature> = {}) {
     this.id = `${type}-${nextId++}`;
-    this.maxHp = this.hp = type === "riscador" ? RISCADOR.hp : type === "veu" ? VEU.hp : ESTILHACO.hp;
+    this.maxHp = this.hp = STATS[type].hp;
     this.home = { ...pos };
     Object.assign(this, opts);
     if (type === "veu") { this.state = "drift"; }
+    if (type === "badalo") { this.state = "hang"; this.pos.y = this.home.y + BADALO.hangY; }
   }
 
   get alive() { return this.state !== "dead"; }
-  get radius() { return this.type === "riscador" ? RISCADOR.radius : this.type === "veu" ? VEU.radius : ESTILHACO.radius; }
-  get height() { return this.type === "riscador" ? RISCADOR.height : this.type === "veu" ? VEU.height : ESTILHACO.height; }
-  get speed() { return this.type === "riscador" ? RISCADOR.speed : this.type === "veu" ? VEU.speed : ESTILHACO.speed; }
+  get radius() { return STATS[this.type].radius; }
+  get height() { return STATS[this.type].height; }
+  get speed() { return STATS[this.type].speed; }
+  /** chefe: não conta no teto de comuns */
+  get boss() { return this.type === "badalo"; }
   /** comuns leves: o sopro do Fole os empurra */
   get light() { return this.type === "riscador" || this.type === "veu"; }
   /** Centro aproximado do corpo (alvo para mira) */
   center(): V3 { return { x: this.pos.x, y: this.pos.y + this.height * 0.55, z: this.pos.z }; }
   /** Ataque já anunciado não é interrompido pela baliza. */
-  get committed() { return this.state === "windup" || this.state === "leap" || (this.state === "aim" && this.stateT > 0) || this.state === "pushed"; }
+  get committed() { return this.state === "windup" || this.state === "leap" || (this.state === "aim" && this.stateT > 0) || this.state === "pushed" || this.state === "stomp" || this.state === "charge"; }
 
   /** Sopro do Fole: desloca até `dist` metros na direção dada, conservando a colisão. */
   push(dir: V3, ctx: CreatureCtx) {
@@ -113,8 +141,21 @@ export class Creature {
 
   set(s: CState) { this.state = s; this.stateT = 0; }
 
+  /** Multiplicador de dano: placa fechada da Carapaça (de frente) e carcaça do Badalo. */
+  damageMul(from?: V3): number {
+    if (this.type === "badalo") return this.state === "stuck" ? 1 : BADALO.shellMul;
+    if (this.type === "carapaca" && from && this.state !== "open") {
+      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+      const dx = from.x - this.pos.x, dz = from.z - this.pos.z, l = Math.hypot(dx, dz) || 1;
+      if ((dx * fx + dz * fz) / l > 0.1) return CARAPACA.frontMul; // de frente, placa fechada
+    }
+    return 1;
+  }
+
   damage(n: number, ctx: CreatureCtx, from?: V3, at?: V3) {
     if (!this.alive) return;
+    this.lastMul = this.damageMul(from);
+    n *= this.lastMul;
     this.hp -= n; this.hitFlash = 0.12;
     if (at) {
       // local do impacto para a reação visual (cabeça, corpo, pernas; lado)
@@ -123,7 +164,7 @@ export class Creature {
       const side = Math.max(-1, Math.min(1, ((at.x - this.pos.x) * c - (at.z - this.pos.z) * s) / Math.max(0.2, this.radius)));
       this.flinch = { h, side, t: 0.32, n: this.flinch.n + 1 };
     }
-    if (from && !this.aware) { this.aware = true; this.lastKnown = { ...ctx.playerPos }; if (this.state === "idle" || this.state === "patrol") this.set("chase"); }
+    if (from && !this.aware && !this.boss) { this.aware = true; this.lastKnown = { ...ctx.playerPos }; if (this.state === "idle" || this.state === "patrol") this.set("chase"); }
     if (this.hp <= 0) {
       this.hp = 0; this.set("dead"); this.deadT = 0;
       if (this.type === "veu") ctx.dissipate(this); // ao cair, o Véu desfaz a nuvem na hora
@@ -223,7 +264,9 @@ export class Creature {
     if (this.state === "dead") { this.deadT += dt; return; }
     if (this.state === "pushed") { this.updatePushed(dt, ctx); return; }
     if (this.type === "veu") { this.updateVeu(dt, ctx); return; }
+    if (this.type === "badalo") { this.updateBadalo(dt, ctx); return; }
     if (this.state === "emerging") { if (this.stateT > 0.8) { this.aware = true; this.lastKnown = { ...ctx.playerPos }; this.set(this.type === "estilhaco" ? "reposition" : "chase"); } return; }
+    if (this.type === "carapaca") { this.updateCarapaca(dt, ctx); return; }
 
     // distração: espécies sensíveis atendem ao pulso se não houver ataque anunciado
     if (ctx.pulse && !this.committed && this.state !== "hop" && this.hearsPulse(ctx)) {
@@ -505,6 +548,163 @@ export class Creature {
         }
         break;
       }
+    }
+  }
+
+  /** Carapaça: anda até ter linha, bate as patas 1 s, investe em linha reta. Batente abre as placas 2,5 s. */
+  private updateCarapaca(dt: number, ctx: CreatureCtx) {
+    const C = CARAPACA;
+    const sees = this.perceive(ctx, C.sightRange);
+    const d = distXZ(this.pos, ctx.playerPos);
+    const dy = Math.abs(ctx.playerPos.y - this.pos.y);
+    switch (this.state) {
+      case "idle": case "patrol": case "search": case "chase": case "lured": {
+        if (!this.aware) {
+          if (!this.patrolTarget || distXZ(this.pos, this.patrolTarget) < 0.6 || this.stateT > 7) {
+            const a = ctx.rand() * Math.PI * 2, r = 1 + ctx.rand() * 2;
+            this.patrolTarget = { x: this.home.x + Math.cos(a) * r, y: this.home.y, z: this.home.z + Math.sin(a) * r };
+            this.path = null; this.stateT = 0;
+          }
+          this.moveAlong(ctx, this.patrolTarget, dt, 0.5);
+          break;
+        }
+        if (sees && d < C.triggerRange && d > 2.2 && dy < 1 && this.stateT > 0.6) {
+          this.set("stomp"); ctx.emit({ type: "carStomp", id: this.id, pos: { ...this.pos } });
+          break;
+        }
+        const tgt = sees ? ctx.playerPos : this.lastKnown ?? ctx.playerPos;
+        if (d > 1.6) this.moveAlong(ctx, tgt, dt, 1); else this.faceTo(ctx.playerPos, dt, 4);
+        if (!sees) { this.lostT += dt; if (this.lostT > ENCOUNTER.forgetTime && !this.relentless) { this.aware = false; this.set("patrol"); } }
+        break;
+      }
+      case "stomp": {
+        if (this.stateT < C.stompTime * 0.75) this.faceTo(ctx.playerPos, dt, 5);
+        this.anim += dt * 9;
+        if (this.stateT >= C.stompTime) {
+          const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+          this.chargeDir = { x: fx, y: 0, z: fz }; this.chargeDist = 0; this.leapHit = false;
+          this.set("charge"); ctx.emit({ type: "carCharge", id: this.id, pos: { ...this.pos }, dir: { ...this.chargeDir } });
+        }
+        break;
+      }
+      case "charge": {
+        const step = C.chargeSpeed * (this.slowT > 0 ? 0.5 : 1) * dt;
+        const o = { x: this.pos.x, y: this.pos.y + 0.5, z: this.pos.z };
+        const h = ctx.world.raycast(o, this.chargeDir, step + this.radius, ["solid", "grate"]);
+        // tromba em Lia no caminho
+        if (!this.leapHit && ctx.playerAlive && d < this.radius + 0.5 && dy < 1.2) { this.leapHit = true; ctx.hurtPlayer(C.damage, this.pos, "carapaca"); }
+        if (h) {
+          const adv = Math.max(0, h.t - this.radius);
+          this.pos.x += this.chargeDir.x * adv; this.pos.z += this.chargeDir.z * adv;
+          const batente = h.box.id.startsWith("batente");
+          ctx.emit({ type: "carSlam", id: this.id, pos: { ...this.pos }, batente });
+          if (batente) { this.set("open"); ctx.emit({ type: "carOpen", id: this.id, pos: this.center() }); }
+          else this.set("stun");
+          break;
+        }
+        const nx = this.pos.x + this.chargeDir.x * step, nz = this.pos.z + this.chargeDir.z * step;
+        const fh = ctx.nav.floorAt(nx, nz);
+        if (Number.isNaN(fh) || Math.abs(fh - this.pos.y) > 0.6) { this.set("stun"); ctx.emit({ type: "carSlam", id: this.id, pos: { ...this.pos }, batente: false }); break; }
+        this.pos.x = nx; this.pos.z = nz; this.pos.y = fh;
+        this.chargeDist += step; this.anim += step * 2.5;
+        if (this.chargeDist >= C.chargeMax) this.set("recover");
+        break;
+      }
+      case "open": if (this.stateT >= C.openTime) { this.set("recover"); ctx.emit({ type: "carClose", id: this.id }); } break;
+      case "stun": if (this.stateT >= C.stunTime) this.set("recover"); break;
+      case "recover": this.faceTo(ctx.playerPos, dt, 2.5); if (this.stateT >= C.recover) { this.path = null; this.set("chase"); } break;
+      default: this.set(this.aware ? "chase" : "patrol");
+    }
+  }
+
+  /**
+   * Badalo: balança pendurado, inclina 1,2 s e trava o ponto (Lia, ou um chamado da baliza a até 7 m da
+   * projeção do corpo). Cai: numa placa ressonante fica preso e expõe o órgão 3 s; fora dela, impacto de 3 m.
+   * A 50% ou menos alterna o mergulho com uma onda de piso anunciada por três anéis.
+   */
+  private updateBadalo(dt: number, ctx: CreatureCtx) {
+    const B = BADALO, floorY = this.home.y, hangY = floorY + B.hangY;
+    const toward = (x: number, z: number, sp: number) => {
+      const dx = x - this.pos.x, dz = z - this.pos.z, l = Math.hypot(dx, dz);
+      if (l < 1e-3) return;
+      const st = Math.min(l, sp * dt); this.pos.x += (dx / l) * st; this.pos.z += (dz / l) * st;
+    };
+    const keepIn = () => { // não sai do raio do trilho em torno do poço
+      const dx = this.pos.x - this.home.x, dz = this.pos.z - this.home.z, l = Math.hypot(dx, dz), R = 10;
+      if (l > R) { this.pos.x = this.home.x + (dx / l) * R; this.pos.z = this.home.z + (dz / l) * R; }
+    };
+    if (!this.halfDone && this.hp <= this.maxHp * 0.5) { this.halfDone = true; ctx.emit({ type: "badaloHalf", id: this.id }); }
+    this.anim += dt;
+    switch (this.state) {
+      case "hang": this.pos.y += (hangY - this.pos.y) * Math.min(1, dt * 3); break; // adormecido
+      case "intro": {
+        // demonstração gratuita: uma batida cai sozinha sobre a placa norte
+        if (!this.lockPos) { this.lockPos = { ...this.plates[0] }; this.lockSrc = "demo"; this.locked = true; ctx.emit({ type: "badaloTilt", id: this.id, pos: { ...this.lockPos }, src: "demo" }); ctx.emit({ type: "badaloLock", id: this.id, pos: { ...this.lockPos }, src: "demo" }); }
+        toward(this.lockPos.x, this.lockPos.z, B.moveSpeed * 2);
+        if (this.stateT >= 1.6) this.set("drop");
+        break;
+      }
+      case "idle": {
+        this.pos.y += (hangY - this.pos.y) * Math.min(1, dt * 3);
+        toward(ctx.playerPos.x, ctx.playerPos.z, B.moveSpeed * 0.35); keepIn();
+        if (this.stateT >= B.cycleGap && ctx.playerAlive) {
+          this.cycles++;
+          const half = this.hp <= this.maxHp * 0.5;
+          if (half && this.altWave) { this.set("waveWarn"); ctx.emit({ type: "badaloWaveWarn", id: this.id, pos: { x: this.pos.x, y: floorY, z: this.pos.z } }); }
+          else { this.lockPos = null; this.locked = false; this.set("tilt"); ctx.emit({ type: "badaloTilt", id: this.id, pos: { x: this.pos.x, y: floorY, z: this.pos.z }, radius: B.hearRadius }); }
+          if (half) this.altWave = !this.altWave;
+        }
+        break;
+      }
+      case "tilt": {
+        // segue o alvo e trava aos 60% da inclinação: dá tempo de sair da placa depois da trava
+        if (!this.locked) {
+          const p = ctx.pulse;
+          if (p && Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z) <= B.hearRadius) { this.lockPos = { x: p.pos.x, y: floorY, z: p.pos.z }; this.lockSrc = "baliza"; }
+          else { this.lockPos = { x: ctx.playerPos.x, y: floorY, z: ctx.playerPos.z }; this.lockSrc = "lia"; }
+          toward(this.lockPos.x, this.lockPos.z, B.moveSpeed); keepIn();
+          if (this.stateT >= B.tiltTime * 0.6) { this.locked = true; ctx.emit({ type: "badaloLock", id: this.id, pos: { ...this.lockPos }, src: this.lockSrc }); }
+        } else toward(this.lockPos!.x, this.lockPos!.z, B.moveSpeed * 3);
+        if (this.stateT >= B.tiltTime) this.set("drop");
+        break;
+      }
+      case "drop": {
+        const k = Math.min(1, this.stateT / B.dropTime);
+        toward(this.lockPos!.x, this.lockPos!.z, 30);
+        this.pos.y = hangY + (floorY - hangY) * k * k;
+        if (k >= 1) {
+          this.pos.y = floorY;
+          this.stuckOn = this.plates.findIndex((pl) => Math.hypot(pl.x - this.pos.x, pl.z - this.pos.z) <= B.plateRadius);
+          if (this.stuckOn >= 0) { this.set("stuck"); ctx.emit({ type: "badaloStuck", id: this.id, pos: { ...this.pos }, plate: this.stuckOn, src: this.lockSrc }); }
+          else {
+            ctx.emit({ type: "badaloSlam", id: this.id, pos: { ...this.pos }, radius: B.impactRadius });
+            if (ctx.playerAlive && distXZ(this.pos, ctx.playerPos) <= B.impactRadius && ctx.playerPos.y < floorY + 1) ctx.hurtPlayer(B.impactDamage, this.pos, "badalo");
+            this.set("rise");
+          }
+        }
+        break;
+      }
+      case "stuck": if (this.stateT >= B.stuckTime) { this.set("rise"); ctx.emit({ type: "badaloRise", id: this.id }); } break;
+      case "rise": {
+        const k = Math.min(1, this.stateT / B.riseTime);
+        this.pos.y = floorY + (hangY - floorY) * (1 - (1 - k) * (1 - k));
+        if (k >= 1) this.set("idle");
+        break;
+      }
+      case "waveWarn": {
+        this.pos.y += (hangY - 0.8 - this.pos.y) * Math.min(1, dt * 4);
+        if (this.stateT >= B.waveWarn) { this.waveR = 0; this.waveHit = false; this.set("wave"); ctx.emit({ type: "badaloWave", id: this.id, pos: { x: this.pos.x, y: floorY, z: this.pos.z } }); }
+        break;
+      }
+      case "wave": {
+        this.waveR += B.waveSpeed * dt;
+        const dd = distXZ(this.pos, ctx.playerPos);
+        // a onda corre pelo piso: pular ou estar no patamar evita
+        if (!this.waveHit && ctx.playerAlive && Math.abs(dd - this.waveR) < B.waveBand && ctx.playerPos.y < floorY + 0.3) { this.waveHit = true; ctx.hurtPlayer(B.waveDamage, { x: this.pos.x, y: floorY, z: this.pos.z }, "badaloOnda"); }
+        if (this.waveR >= B.waveMax) this.set("idle");
+        break;
+      }
+      default: this.set("idle");
     }
   }
 }

@@ -1,5 +1,12 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+
+/** Caixa com cantos arredondados (bisel): tira o aspecto de blocos das armas em primeira pessoa. */
+function rbox(w: number, h: number, d: number, r = 0.008): THREE.BufferGeometry {
+  const rr = Math.min(r, Math.min(w, h, d) * 0.3);
+  return rr < 0.0015 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 2, rr);
+}
 import { texFish, texGlow, texSign, texVeins } from "./textures";
 
 const ceramic = () => new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.35, metalness: 0.05, flatShading: true, emissive: 0x000000 });
@@ -30,189 +37,8 @@ function mergeByMaterial(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
   }
 }
 
-export interface CreatureRig {
-  root: THREE.Group;
-  body: THREE.Object3D;
-  legs: THREE.Object3D[];
-  rims: THREE.Mesh[];
-  crown: THREE.Object3D[];
-  core: THREE.Mesh | null;
-  /** cascas (lampejo de impacto pelo emissivo) */
-  mats: THREE.MeshStandardMaterial[];
-  mark: THREE.Object3D;
-  beam?: THREE.Mesh;
-  /** cabeça (reação a tiros altos) */
-  head?: THREE.Object3D;
-  /** peças que se estilhaçam ao morrer */
-  pieces: THREE.Mesh[];
-  /** Véu: saco que incha e fita ondulante */
-  sac?: THREE.Mesh;
-  ribbon?: THREE.Mesh;
-  uniforms?: { uTime: { value: number }; uSwell: { value: number } };
-  veinColor: THREE.Color;
-}
-
-/** Cristal vivo: casca facetada translúcida com veias de luz pulsando por baixo. */
-function crystal(color: number, vein: number): THREE.MeshStandardMaterial {
-  const veins = texVeins();
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.2, metalness: 0.15, flatShading: true, emissive: vein, emissiveMap: veins, emissiveIntensity: 1.4, envMapIntensity: 1.0 });
-}
-
-function leg(len1: number, len2: number, mat: THREE.Material, joint?: THREE.Material): THREE.Group {
-  const g = new THREE.Group();
-  const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.026, len1, 4), mat);
-  upper.position.y = -len1 / 2;
-  const knee = new THREE.Group(); knee.position.y = -len1;
-  if (joint) { const j = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0), joint); knee.add(j); }
-  const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.004, len2, 4), mat);
-  lower.position.y = -len2 / 2;
-  knee.add(lower);
-  g.add(upper, knee);
-  g.userData.knee = knee;
-  return g;
-}
-
-function markRing(): THREE.Object3D {
-  const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 0), new THREE.MeshBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: 0.95, depthTest: false }));
-  m.renderOrder = 10;
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.02, 4, 24), new THREE.MeshBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: 0.8, depthTest: false }));
-  ring.rotation.x = Math.PI / 2; ring.renderOrder = 10;
-  g.add(m, ring); g.visible = false;
-  return g;
-}
-
-function collectPieces(body: THREE.Object3D, legs: THREE.Object3D[]): THREE.Mesh[] {
-  const out: THREE.Mesh[] = [];
-  body.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) out.push(m); });
-  for (const l of legs) l.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) out.push(m); });
-  return out;
-}
-
-/** Riscador: quadrúpede de cristal, carapaça facetada com espinhos translúcidos e veias ciano. */
-export function buildRiscador(): CreatureRig {
-  const root = new THREE.Group();
-  const mat = crystal(0x7d97a2, 0x3fd8ff);
-  const dmat = new THREE.MeshStandardMaterial({ color: 0x2c3236, roughness: 0.35, metalness: 0.3, flatShading: true });
-  const body = new THREE.Group();
-  body.position.y = 0.62;
-  const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), mat);
-  shell.scale.set(0.78, 0.52, 1.25);
-  const ridge = new THREE.Mesh(new THREE.OctahedronGeometry(0.3, 0), mat); ridge.scale.set(0.35, 0.5, 1.5); ridge.position.set(0, 0.16, 0.05);
-  const belly = new THREE.Mesh(new THREE.IcosahedronGeometry(0.33, 0), dmat);
-  belly.scale.set(0.8, 0.5, 1.1); belly.position.y = -0.1;
-  const head = new THREE.Group(); head.position.set(0, 0.04, -0.5);
-  const skull = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.5, 5), mat); skull.rotation.x = -Math.PI / 2; skull.position.z = -0.12;
-  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.25), new THREE.MeshBasicMaterial({ color: 0xff6a2a }));
-  mouth.position.set(0, -0.07, -0.2);
-  for (const side of [-1, 1]) {
-    const mand = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.28, 4), dmat); mand.rotation.set(-Math.PI / 2 + 0.2, 0, side * 0.35); mand.position.set(side * 0.1, -0.08, -0.3); head.add(mand);
-    const eye = new THREE.Mesh(new THREE.OctahedronGeometry(0.03, 0), new THREE.MeshBasicMaterial({ color: 0x9ff8ff, toneMapped: false })); eye.position.set(side * 0.09, 0.06, -0.12); head.add(eye);
-  }
-  head.add(skull, mouth);
-  body.add(shell, ridge, belly, head);
-  // espinhos translúcidos (vibram antes do ataque)
-  const rims: THREE.Mesh[] = [];
-  for (let i = 0; i < 6; i++) {
-    const rim = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.36 + (i % 3) * 0.08, 4, 1, true), rimMat());
-    rim.position.set((i % 2 ? 0.08 : -0.08), 0.22, 0.38 - i * 0.15);
-    rim.rotation.set(-0.55, 0, (i % 2 ? -0.25 : 0.25));
-    body.add(rim); rims.push(rim);
-  }
-  for (const side of [-1, 1]) {
-    const fin = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.16), rimMat());
-    fin.position.set(side * 0.3, 0.05, 0.05); fin.rotation.set(0, side * 0.2, side * 0.6);
-    body.add(fin); rims.push(fin);
-  }
-  root.add(body);
-  const legs: THREE.Object3D[] = [];
-  for (const [x, z] of [[-0.26, -0.35], [0.26, -0.35], [-0.26, 0.38], [0.26, 0.38]]) {
-    const l = leg(0.42, 0.55, mat, dmat);
-    l.position.set(x, 0.62, z);
-    l.rotation.z = x > 0 ? 0.7 : -0.7;
-    (l.userData.knee as THREE.Object3D).rotation.z = x > 0 ? -1.4 : 1.4;
-    root.add(l); legs.push(l);
-  }
-  const mark = markRing(); mark.position.y = 1.35; root.add(mark);
-  return { root, body, legs, rims, crown: [], core: null, mats: [mat], mark, head, pieces: collectPieces(body, legs), veinColor: new THREE.Color(0x3fd8ff) };
-}
-
-/** Estilhaço: alto, coroa de placas de cristal que abre e mostra a linha de luz; veias âmbar. */
-export function buildEstilhaco(): CreatureRig {
-  const root = new THREE.Group();
-  const mat = crystal(0xa08c78, 0xff8a3a);
-  const dmat = new THREE.MeshStandardMaterial({ color: 0x302a26, roughness: 0.4, metalness: 0.3, flatShading: true });
-  const body = new THREE.Group();
-  body.position.y = 1.15;
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 0.95, 6), mat);
-  const ribs = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.5, 6, 1, true), dmat); ribs.position.y = -0.05; ribs.scale.set(1.08, 1, 1.08);
-  const pelvis = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), dmat); pelvis.position.y = -0.52; pelvis.scale.y = 0.6;
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.12, 0.3, 5), dmat); neck.position.y = 0.6;
-  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), new THREE.MeshBasicMaterial({ color: 0xff8040 }));
-  core.position.y = 0.82;
-  const head = new THREE.Group(); head.position.y = 0.82; // a coroa e o núcleo formam a "cabeça"
-  body.add(torso, ribs, pelvis, neck, core, head);
-  for (const side of [-1, 1]) { // braços-lâmina
-    const arm = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.7, 4), mat); arm.position.set(side * 0.3, 0.1, 0.05); arm.rotation.set(0.2, 0, side * 2.9); body.add(arm);
-  }
-  const crown: THREE.Object3D[] = [];
-  for (let i = 0; i < 7; i++) {
-    const piv = new THREE.Group();
-    piv.position.y = 0.78; piv.rotation.y = (i / 7) * Math.PI * 2;
-    const shard = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.55, 3), mat);
-    shard.position.set(0, 0.27, 0.12);
-    const edge = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.6, 3, 1, true), rimMat(0xffb070));
-    edge.position.copy(shard.position);
-    piv.add(shard, edge);
-    piv.rotation.x = 0.1;
-    body.add(piv); crown.push(piv);
-  }
-  const rims: THREE.Mesh[] = [];
-  for (const side of [-1, 1]) {
-    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.8), rimMat(0xffb070));
-    plate.position.set(side * 0.22, 0.05, 0); plate.rotation.y = side * 0.4;
-    body.add(plate); rims.push(plate);
-  }
-  root.add(body);
-  const legs: THREE.Object3D[] = [];
-  for (const [x, z] of [[-0.18, 0.05], [0.18, 0.05], [0, -0.2]]) {
-    const l = leg(0.45, 0.6, mat, dmat);
-    l.position.set(x, 0.66, z);
-    l.rotation.z = x * 1.2; l.rotation.x = z * 1.5;
-    (l.userData.knee as THREE.Object3D).rotation.x = 0.5;
-    root.add(l); legs.push(l);
-  }
-  const mark = markRing(); mark.position.y = 2.45; root.add(mark);
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6, 1, true), new THREE.MeshBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
-  beam.visible = false;
-  return { root, body, legs, rims, crown, core, mats: [mat], mark, beam, head, pieces: collectPieces(body, legs), veinColor: new THREE.Color(0xff8a3a) };
-}
-
-/** Véu: flutuador em fita. Um saco translúcido que incha e uma fita longa que ondula (no shader). */
-export function buildVeu(): CreatureRig {
-  const root = new THREE.Group();
-  const uniforms = { uTime: { value: 0 }, uSwell: { value: 0 } };
-  const mat = new THREE.MeshStandardMaterial({ color: 0xbfd6d0, roughness: 0.3, metalness: 0.05, emissive: 0x5fe8c8, emissiveMap: texVeins(), emissiveIntensity: 0.7, transparent: true, opacity: 0.82, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false });
-  mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = uniforms.uTime; sh.uniforms.uSwell = uniforms.uSwell;
-    sh.vertexShader = "uniform float uTime; uniform float uSwell;\n" + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
-  float k = clamp(-position.y / 2.6, 0.0, 1.0);
-  transformed.x += sin(position.y * 2.6 + uTime * 3.1) * 0.22 * k + sin(uTime * 1.3) * 0.05;
-  transformed.z += cos(position.y * 1.9 + uTime * 2.3) * 0.18 * k * (1.0 + uSwell);`);
-  };
-  const body = new THREE.Group(); body.position.y = 1.0;
-  const sacMat = new THREE.MeshStandardMaterial({ color: 0x9fc8c0, roughness: 0.2, emissive: 0x5fe8c8, emissiveMap: texVeins(), emissiveIntensity: 1.0, transparent: true, opacity: 0.7, depthWrite: false, flatShading: true });
-  const sac = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 1), sacMat); sac.scale.set(1, 0.8, 1);
-  const ribbonGeo = new THREE.PlaneGeometry(0.42, 2.6, 1, 24); ribbonGeo.translate(0, -1.3, 0);
-  const ribbon = new THREE.Mesh(ribbonGeo, mat); ribbon.position.y = -0.1;
-  const ribbon2 = new THREE.Mesh(ribbonGeo, mat); ribbon2.position.set(0.12, -0.05, 0.05); ribbon2.rotation.y = 1.3; ribbon2.scale.set(0.7, 0.75, 1);
-  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), new THREE.MeshBasicMaterial({ color: 0x9ffff0, toneMapped: false }));
-  body.add(sac, ribbon, ribbon2, core);
-  for (let i = 0; i < 4; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.4, 4), sacMat); const a = (i / 4) * Math.PI * 2; f.position.set(Math.cos(a) * 0.3, 0.12, Math.sin(a) * 0.3); f.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9); body.add(f); }
-  root.add(body);
-  const mark = markRing(); mark.position.y = 1.7; root.add(mark);
-  return { root, body, legs: [], rims: [], crown: [], core, mats: [sacMat], mark, head: sac, pieces: collectPieces(body, []), sac, ribbon, uniforms, veinColor: new THREE.Color(0x5fe8c8) };
-}
+export type { CreatureRig } from "./creatures3d";
+export { buildRiscador, buildEstilhaco, buildVeu, buildCarapaca, buildBadalo } from "./creatures3d";
 
 /** Agulha em primeira pessoa: trilho, aletas de dissipação, bobinas, mira com ponto e indicador de dardos. */
 export function buildAgulha(): WeaponView {
@@ -226,35 +52,35 @@ export function buildAgulha(): WeaponView {
     const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
   };
   // receptor
-  add(root, new THREE.BoxGeometry(0.07, 0.085, 0.42), body, 0, 0, 0);
-  add(root, new THREE.BoxGeometry(0.074, 0.02, 0.36), dark, 0, -0.045, -0.01);
-  for (let i = 0; i < 5; i++) add(root, new THREE.BoxGeometry(0.078, 0.022, 0.012), dark, 0, 0.02, -0.06 - i * 0.03); // aletas
+  add(root, rbox(0.07, 0.085, 0.42), body, 0, 0, 0);
+  add(root, rbox(0.074, 0.02, 0.36), dark, 0, -0.045, -0.01);
+  for (let i = 0; i < 5; i++) add(root, rbox(0.078, 0.022, 0.012), dark, 0, 0.02, -0.06 - i * 0.03); // aletas
   // ferrolho que recua no disparo
   const slide = new THREE.Group(); root.add(slide);
-  add(slide, new THREE.BoxGeometry(0.075, 0.03, 0.3), trim, 0, 0.055, -0.02);
-  add(slide, new THREE.BoxGeometry(0.02, 0.018, 0.04), dark, 0.04, 0.055, 0.09);
+  add(slide, rbox(0.075, 0.03, 0.3), trim, 0, 0.055, -0.02);
+  add(slide, rbox(0.02, 0.018, 0.04), dark, 0.04, 0.055, 0.09);
   // trilho e mira com ponto
-  for (let i = 0; i < 6; i++) add(root, new THREE.BoxGeometry(0.03, 0.008, 0.018), dark, 0, 0.074, -0.1 + i * 0.035);
-  add(root, new THREE.BoxGeometry(0.036, 0.034, 0.05), dark, 0, 0.094, 0.03);
+  for (let i = 0; i < 6; i++) add(root, rbox(0.03, 0.008, 0.018), dark, 0, 0.074, -0.1 + i * 0.035);
+  add(root, rbox(0.036, 0.034, 0.05), dark, 0, 0.094, 0.03);
   add(root, new THREE.CylinderGeometry(0.016, 0.016, 0.052, 10), dark, 0, 0.098, 0.03, Math.PI / 2);
   add(root, new THREE.SphereGeometry(0.004, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff5040, toneMapped: false }), 0, 0.098, 0.004);
-  add(root, new THREE.BoxGeometry(0.015, 0.03, 0.02), trim, 0, 0.085, -0.15);
+  add(root, rbox(0.015, 0.03, 0.02), trim, 0, 0.085, -0.15);
   // cano, bobinas e quebra-chama
   add(root, new THREE.CylinderGeometry(0.012, 0.016, 0.32, 8), body, 0, 0.01, -0.36, Math.PI / 2);
   add(root, new THREE.CylinderGeometry(0.022, 0.022, 0.05, 8), trim, 0, 0.01, -0.5, Math.PI / 2);
-  for (let i = 0; i < 3; i++) add(root, new THREE.BoxGeometry(0.006, 0.05, 0.03), dark, 0, 0.01, -0.5, 0, 0, (i * Math.PI) / 3);
+  for (let i = 0; i < 3; i++) add(root, rbox(0.006, 0.05, 0.03), dark, 0, 0.01, -0.5, 0, 0, (i * Math.PI) / 3);
   const coils: THREE.Mesh[] = [];
   for (let i = 0; i < 4; i++) coils.push(add(root, new THREE.TorusGeometry(0.03, 0.007, 6, 14), glow, 0, 0.01, -0.24 - i * 0.05));
-  add(root, new THREE.BoxGeometry(0.01, 0.01, 0.2), new THREE.MeshStandardMaterial({ color: 0x3a2a20, roughness: 0.8 }), -0.03, -0.025, -0.3); // cabo de energia
+  add(root, rbox(0.01, 0.01, 0.2), new THREE.MeshStandardMaterial({ color: 0x3a2a20, roughness: 0.8 }), -0.03, -0.025, -0.3); // cabo de energia
   // empunhadura, guarda-mato e coronha
-  add(root, new THREE.BoxGeometry(0.05, 0.12, 0.07), grip, 0, -0.09, 0.12, 0.3);
+  add(root, rbox(0.05, 0.12, 0.07), grip, 0, -0.09, 0.12, 0.3);
   add(root, new THREE.TorusGeometry(0.03, 0.006, 4, 10, Math.PI), dark, 0, -0.055, 0.07, 0, Math.PI / 2, 0);
-  add(root, new THREE.BoxGeometry(0.06, 0.05, 0.16), body, 0, -0.005, 0.27);
-  add(root, new THREE.BoxGeometry(0.066, 0.075, 0.03), grip, 0, -0.012, 0.35);
-  add(root, new THREE.BoxGeometry(0.03, 0.03, 0.02), trim, 0, 0.08, 0.1);
+  add(root, rbox(0.06, 0.05, 0.16), body, 0, -0.005, 0.27);
+  add(root, rbox(0.066, 0.075, 0.03), grip, 0, -0.012, 0.35);
+  add(root, rbox(0.03, 0.03, 0.02), trim, 0, 0.08, 0.1);
   // indicador de dardos (6 segmentos) no flanco esquerdo
   const leds: THREE.Mesh[] = [];
-  for (let i = 0; i < 6; i++) leds.push(add(root, new THREE.BoxGeometry(0.004, 0.012, 0.018), new THREE.MeshBasicMaterial({ color: 0x39d8ff, toneMapped: false }), -0.037, 0.022, 0.05 - i * 0.024));
+  for (let i = 0; i < 6; i++) leds.push(add(root, rbox(0.004, 0.012, 0.018), new THREE.MeshBasicMaterial({ color: 0x39d8ff, toneMapped: false }), -0.037, 0.022, 0.05 - i * 0.024));
   // cápsula de dardos (sai na recarga)
   const magMat = new THREE.MeshStandardMaterial({ color: 0x0c2a30, emissive: 0x39d8ff, emissiveIntensity: 0.9, transparent: true, opacity: 0.85, roughness: 0.1 });
   const mag = new THREE.Group(); mag.position.set(0.045, 0.0, -0.06); root.add(mag);
@@ -263,11 +89,11 @@ export function buildAgulha(): WeaponView {
   // mãos/luvas
   const glove = new THREE.MeshStandardMaterial({ color: 0x23211f, roughness: 0.9 });
   const sleeve = new THREE.MeshStandardMaterial({ color: 0x3d4a3a, roughness: 0.95 });
-  add(root, new THREE.BoxGeometry(0.075, 0.07, 0.11), glove, 0, -0.1, 0.13, 0.3);
-  add(root, new THREE.BoxGeometry(0.09, 0.09, 0.32), sleeve, 0.02, -0.15, 0.33, 0.25);
+  add(root, rbox(0.075, 0.07, 0.11), glove, 0, -0.1, 0.13, 0.3);
+  add(root, rbox(0.09, 0.09, 0.32), sleeve, 0.02, -0.15, 0.33, 0.25);
   const hand = new THREE.Group(); hand.position.set(-0.03, -0.03, -0.24); root.add(hand);
-  add(hand, new THREE.BoxGeometry(0.07, 0.06, 0.1), glove, 0, 0, 0, 0, 0, 0.4);
-  add(hand, new THREE.BoxGeometry(0.085, 0.085, 0.36), sleeve, -0.07, -0.09, 0.19, 0.1, -0.55, 0.2);
+  add(hand, rbox(0.07, 0.06, 0.1), glove, 0, 0, 0, 0, 0, 0.4);
+  add(hand, rbox(0.085, 0.085, 0.36), sleeve, -0.07, -0.09, 0.19, 0.1, -0.55, 0.2);
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.01, -0.54); root.add(muzzle);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texGlow(), color: 0x8ff4ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   flash.scale.setScalar(0.18); flash.position.copy(muzzle.position); flash.visible = false; root.add(flash);
@@ -290,9 +116,18 @@ export function buildBeaconDevice(): { root: THREE.Group; light: THREE.Mesh } {
   return { root, light };
 }
 
-export function buildPickup(kind: "dardos" | "curativo" | "fole"): THREE.Group {
+export function buildPickup(kind: "dardos" | "curativo" | "fole" | "tear"): THREE.Group {
   const g = new THREE.Group();
-  if (kind === "fole") {
+  if (kind === "tear") {
+    // carretel de fio do Tear: bobina violeta em caixa estreita
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.3), new THREE.MeshStandardMaterial({ color: 0x2f2a3c, roughness: 0.6, metalness: 0.4 }));
+    box.position.y = 0.13;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.44, 0.26, 0.32)), new THREE.LineBasicMaterial({ color: 0xc89bff }));
+    edges.position.y = 0.13;
+    const icon = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.13), new THREE.MeshBasicMaterial({ map: texSign("╪ TEAR", "#d0a8ff", 512, 128), transparent: true }));
+    icon.position.set(0, 0.15, 0.155);
+    g.add(box, edges, icon);
+  } else if (kind === "fole") {
     // caixa de cartuchos do Fole: lata âmbar com seis furos no tampo
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.26, 0.34), new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 0.55, metalness: 0.5 }));
     box.position.y = 0.14;
@@ -316,7 +151,7 @@ export function buildPickup(kind: "dardos" | "curativo" | "fole"): THREE.Group {
     band.rotation.z = Math.PI / 2; band.position.y = 0.14;
     g.add(body, band);
   }
-  const halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 24), new THREE.MeshBasicMaterial({ color: kind === "dardos" ? 0x5ff0ff : kind === "fole" ? 0xffc070 : 0xffa23a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false }));
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 24), new THREE.MeshBasicMaterial({ color: kind === "dardos" ? 0x5ff0ff : kind === "fole" ? 0xffc070 : kind === "tear" ? 0xc89bff : 0xffa23a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false }));
   halo.rotation.x = -Math.PI / 2; halo.position.y = 0.02;
   g.add(halo);
   g.userData.halo = halo;
@@ -384,9 +219,9 @@ export function buildFoleModel(): WeaponView {
   const glow = new THREE.MeshStandardMaterial({ color: 0x40220c, emissive: 0xffa040, emissiveIntensity: 1.4, roughness: 0.3 });
   const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); parent.add(o); return o; };
   // receptor e coronha curta
-  add(root, new THREE.BoxGeometry(0.085, 0.1, 0.26), body, 0, 0, 0.06);
-  add(root, new THREE.BoxGeometry(0.06, 0.13, 0.08), body, 0, -0.1, 0.16, 0.35);
-  add(root, new THREE.BoxGeometry(0.07, 0.07, 0.14), body, 0, -0.01, 0.26);
+  add(root, rbox(0.085, 0.1, 0.26), body, 0, 0, 0.06);
+  add(root, rbox(0.06, 0.13, 0.08), body, 0, -0.1, 0.16, 0.35);
+  add(root, rbox(0.07, 0.07, 0.14), body, 0, -0.01, 0.26);
   // fole sanfonado (anima no disparo)
   const bellows = new THREE.Group(); bellows.position.set(0, 0.005, -0.12); root.add(bellows);
   for (let i = 0; i < 5; i++) add(bellows, new THREE.CylinderGeometry(0.05 + (i % 2) * 0.012, 0.05 + (i % 2) * 0.012, 0.028, 8), leather, 0, 0, -i * 0.026, Math.PI / 2);
@@ -397,22 +232,22 @@ export function buildFoleModel(): WeaponView {
   const bell = add(root, new THREE.CylinderGeometry(0.075, 0.035, 0.09, 12, 1, true), brass, 0, 0.005, -0.46, Math.PI / 2);
   (bell.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
   const vents: THREE.Mesh[] = [];
-  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; vents.push(add(root, new THREE.BoxGeometry(0.008, 0.03, 0.05), glow, Math.cos(a) * 0.06, 0.005 + Math.sin(a) * 0.06, -0.47, 0, 0, a)); }
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; vents.push(add(root, rbox(0.008, 0.03, 0.05), glow, Math.cos(a) * 0.06, 0.005 + Math.sin(a) * 0.06, -0.47, 0, 0, a)); }
   // indicador de cartuchos (8 luzes) no flanco
   const leds: THREE.Mesh[] = [];
-  for (let i = 0; i < 8; i++) leds.push(add(root, new THREE.BoxGeometry(0.006, 0.012, 0.014), new THREE.MeshBasicMaterial({ color: 0xffa040, toneMapped: false }), 0.044, 0.03, 0.12 - i * 0.02));
+  for (let i = 0; i < 8; i++) leds.push(add(root, rbox(0.006, 0.012, 0.014), new THREE.MeshBasicMaterial({ color: 0xffa040, toneMapped: false }), 0.044, 0.03, 0.12 - i * 0.02));
   // tubo de munição sob o cano (vira o "mag" para a recarga)
   const magMat = new THREE.MeshStandardMaterial({ color: 0x3a2410, emissive: 0xffa040, emissiveIntensity: 0.6, roughness: 0.4 });
   const mag = add(root, new THREE.CylinderGeometry(0.022, 0.022, 0.2, 8), magMat, 0, -0.06, -0.15, Math.PI / 2);
   // alça de bombear e mão esquerda
   const hand = new THREE.Group(); hand.position.set(0, -0.07, -0.22); root.add(hand);
-  add(hand, new THREE.BoxGeometry(0.07, 0.05, 0.1), body, 0, 0, 0);
+  add(hand, rbox(0.07, 0.05, 0.1), body, 0, 0, 0);
   const glove = new THREE.MeshStandardMaterial({ color: 0x23211f, roughness: 0.9 });
   const sleeve = new THREE.MeshStandardMaterial({ color: 0x3d4a3a, roughness: 0.95 });
-  add(hand, new THREE.BoxGeometry(0.08, 0.07, 0.1), glove, -0.02, -0.04, 0, 0, 0, 0.4);
-  add(hand, new THREE.BoxGeometry(0.085, 0.085, 0.36), sleeve, -0.08, -0.09, 0.18, 0.1, -0.55, 0.2);
-  add(root, new THREE.BoxGeometry(0.075, 0.07, 0.11), glove, 0, -0.11, 0.17, 0.3);
-  add(root, new THREE.BoxGeometry(0.09, 0.09, 0.32), sleeve, 0.02, -0.16, 0.37, 0.25);
+  add(hand, rbox(0.08, 0.07, 0.1), glove, -0.02, -0.04, 0, 0, 0, 0.4);
+  add(hand, rbox(0.085, 0.085, 0.36), sleeve, -0.08, -0.09, 0.18, 0.1, -0.55, 0.2);
+  add(root, rbox(0.075, 0.07, 0.11), glove, 0, -0.11, 0.17, 0.3);
+  add(root, rbox(0.09, 0.09, 0.32), sleeve, 0.02, -0.16, 0.37, 0.25);
   const coils = [...vents];
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.005, -0.52); root.add(muzzle);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texGlow(), color: 0xffc080, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -423,3 +258,52 @@ export function buildFoleModel(): WeaponView {
   return { root, mag, coils, muzzle, flash, magMat, leds, bellows, hand, vents };
 }
 
+
+/**
+ * Tear: tear de mão — dois braços em forquilha com o fio de luz esticado entre eles, carretel violeta
+ * (o "pente" que sai na recarga) e doze contas que mostram as cargas.
+ */
+export function buildTearModel(): WeaponView {
+  const root = new THREE.Group();
+  const body = new THREE.MeshStandardMaterial({ color: 0x3c3a44, roughness: 0.45, metalness: 0.6 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.7, metalness: 0.05 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x7a7c84, roughness: 0.35, metalness: 0.8 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0x2a1840, emissive: 0xb07aff, emissiveIntensity: 1.5, roughness: 0.3 });
+  const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); parent.add(o); return o; };
+  // corpo, cabo de madeira e coronha curta
+  add(root, rbox(0.07, 0.08, 0.34, 0.012), body, 0, 0, 0);
+  add(root, rbox(0.05, 0.13, 0.07, 0.012), wood, 0, -0.1, 0.12, 0.3);
+  add(root, rbox(0.06, 0.075, 0.16, 0.014), wood, 0, -0.02, 0.24);
+  // forquilha: dois braços e o fio esticado
+  for (const side of [-1, 1]) {
+    add(root, new THREE.CylinderGeometry(0.011, 0.014, 0.26, 8), steel, side * 0.045, 0.01, -0.28, Math.PI / 2, 0, 0);
+    add(root, new THREE.SphereGeometry(0.016, 8, 6), steel, side * 0.045, 0.01, -0.41);
+  }
+  const coils: THREE.Mesh[] = [];
+  coils.push(add(root, new THREE.CylinderGeometry(0.0035, 0.0035, 0.09, 6), glow, 0, 0.01, -0.41, 0, 0, Math.PI / 2));
+  coils.push(add(root, new THREE.CylinderGeometry(0.0025, 0.0025, 0.24, 6), glow, 0, 0.01, -0.3, Math.PI / 2, 0, 0));
+  // pentes guia
+  for (let i = 0; i < 4; i++) add(root, rbox(0.1, 0.012, 0.012, 0.004), steel, 0, 0.012, -0.18 - i * 0.055);
+  // carretel (sai na recarga)
+  const magMat = new THREE.MeshStandardMaterial({ color: 0x241634, emissive: 0xb07aff, emissiveIntensity: 0.8, roughness: 0.4 });
+  const mag = add(root, new THREE.CylinderGeometry(0.035, 0.035, 0.05, 14), magMat, 0, 0.07, 0.03, 0, 0, Math.PI / 2);
+  add(root, new THREE.TorusGeometry(0.037, 0.006, 6, 16), steel, 0.027, 0.07, 0.03, 0, Math.PI / 2, 0);
+  add(root, new THREE.TorusGeometry(0.037, 0.006, 6, 16), steel, -0.027, 0.07, 0.03, 0, Math.PI / 2, 0);
+  // contas das cargas (12) no flanco
+  const leds: THREE.Mesh[] = [];
+  for (let i = 0; i < 12; i++) leds.push(add(root, new THREE.SphereGeometry(0.0055, 6, 4), new THREE.MeshBasicMaterial({ color: 0xb07aff, toneMapped: false }), 0.038, -0.012, 0.13 - i * 0.017));
+  // mão de apoio e mangas
+  const hand = new THREE.Group(); hand.position.set(0, -0.06, -0.12); root.add(hand);
+  const glove = new THREE.MeshStandardMaterial({ color: 0x23211f, roughness: 0.9 });
+  const sleeve = new THREE.MeshStandardMaterial({ color: 0x3d4a3a, roughness: 0.95 });
+  add(hand, rbox(0.08, 0.06, 0.1, 0.02), glove, -0.015, -0.01, 0, 0, 0, 0.4);
+  add(hand, new THREE.CapsuleGeometry(0.042, 0.28, 4, 8), sleeve, -0.08, -0.07, 0.18, Math.PI / 2 + 0.1, -0.55, 0.2);
+  add(root, rbox(0.07, 0.07, 0.1, 0.02), glove, 0, -0.11, 0.14, 0.3);
+  add(root, new THREE.CapsuleGeometry(0.045, 0.26, 4, 8), sleeve, 0.02, -0.16, 0.34, Math.PI / 2 + 0.25, 0, 0);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.01, -0.42); root.add(muzzle);
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texGlow(), color: 0xc8a0ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  flash.scale.setScalar(0.16); flash.position.copy(muzzle.position); flash.visible = false; root.add(flash);
+  mergeByMaterial(root, new Set<THREE.Object3D>([...coils, ...leds, mag]));
+  root.traverse((o) => { o.frustumCulled = false; });
+  return { root, mag, coils, muzzle, flash, magMat, leds, hand };
+}

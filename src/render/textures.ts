@@ -332,3 +332,36 @@ export function texWallDrawing(text: string) {
     g.fillStyle = "rgba(235,230,210,0.9)"; g.font = "700 22px 'DejaVu Sans', sans-serif"; g.textAlign = "center"; g.fillText(text, s / 2, 40);
   }, false);
 }
+/**
+ * Pele/quitina orgânica (tons de cinza, tingida pelo material): placas irregulares com sulcos escuros,
+ * manchas e poros. Fosca: nada de reflexo; o relevo vem só do desenho.
+ */
+export const texSkin = () => canvasTex("skin", 256, (g, s) => {
+  const r = rand(91);
+  g.fillStyle = "#8a8a8a"; g.fillRect(0, 0, s, s);
+  // manchas grandes (variação de pigmento)
+  for (let i = 0; i < 40; i++) {
+    const x = r() * s, y = r() * s, rad = 10 + r() * 40, v = 110 + Math.floor(r() * 60);
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, `rgba(${v},${v},${v},0.5)`); gr.addColorStop(1, `rgba(${v},${v},${v},0)`);
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  // placas: células de Voronoi aproximadas por pontos; sulcos onde duas células se encontram
+  const pts: [number, number][] = []; for (let i = 0; i < 26; i++) pts.push([r() * s, r() * s]);
+  const img = g.getImageData(0, 0, s, s); const d = img.data;
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    let a = 1e9, b = 1e9;
+    for (const [px, py] of pts) {
+      let dx = Math.abs(x - px), dy = Math.abs(y - py); dx = Math.min(dx, s - dx); dy = Math.min(dy, s - dy);
+      const q = dx * dx + dy * dy; if (q < a) { b = a; a = q; } else if (q < b) b = q;
+    }
+    const edge = Math.sqrt(b) - Math.sqrt(a); // 0 na borda entre placas
+    const k = edge < 2.2 ? 0.42 : edge < 5 ? 0.8 : 1 + Math.min(0.12, edge / 200);
+    const n = 0.92 + ((x * 7 + y * 13) % 5) * 0.02;
+    const i = (y * s + x) * 4;
+    d[i] = Math.min(255, d[i] * k * n); d[i + 1] = Math.min(255, d[i + 1] * k * n); d[i + 2] = Math.min(255, d[i + 2] * k * n);
+  }
+  g.putImageData(img, 0, 0);
+  // poros
+  for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(30,30,30,${0.2 + r() * 0.3})`; g.beginPath(); g.arc(r() * s, r() * s, 0.6 + r() * 1.2, 0, 7); g.fill(); }
+});
