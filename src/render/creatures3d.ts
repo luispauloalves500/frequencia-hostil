@@ -39,28 +39,87 @@ const WAVE = `
   transformed.z += cos(position.y * 1.9 + uTime * 2.3) * 0.18 * k * (1.0 + uSwell);`;
 
 /**
- * Pele fosca com subsuperfície falsa e dissolução. Todas as criaturas usam o mesmo programa
- * (a mesma chave de cache); só os uniforms mudam por criatura.
+ * Uniforms compartilhados por todos os materiais de pele de uma criatura (ligados ao objeto de dissolução):
+ * matriz inversa da raiz (feridas presas ao corpo), até 4 feridas e o contorno frio de leitura.
  */
-function flesh(color: number, sss: number, dis: { value: number }, o: { wave?: { uTime: { value: number }; uSwell: { value: number } }; transparent?: boolean; opacity?: number; side?: THREE.Side; repeat?: number } = {}): THREE.MeshLambertMaterial {
+export interface CreatureFx { rootInv: { value: THREE.Matrix4 }; wounds: { value: THREE.Vector4[] }; woundR: { value: number }; rim: { value: THREE.Color }; next: number }
+const FX = new WeakMap<object, CreatureFx>();
+export function fxOf(dis: { value: number }): CreatureFx {
+  let f = FX.get(dis);
+  if (!f) { f = { rootInv: { value: new THREE.Matrix4() }, wounds: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, -99, 0, 0)) }, woundR: { value: 0.08 }, rim: { value: new THREE.Color(0x000000) }, next: 0 }; FX.set(dis, f); }
+  return f;
+}
+
+/** Ruído de valor 3D barato (relevo da pele: poros, sulcos e placas). */
+const NOISE = `
+float fhH3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float fhN3(vec3 p) {
+  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(fhH3(i), fhH3(i + vec3(1, 0, 0)), f.x), mix(fhH3(i + vec3(0, 1, 0)), fhH3(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(fhH3(i + vec3(0, 0, 1)), fhH3(i + vec3(1, 0, 1)), f.x), mix(fhH3(i + vec3(0, 1, 1)), fhH3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+float fhSkinH;`;
+
+/**
+ * Pele fosca com subsuperfície falsa, relevo procedural (sulcos de quitina ou poros), feridas que ficam
+ * onde o tiro pegou, contorno frio (leitura em áreas claras) e dissolução com cinza e borda quente.
+ * Todas as criaturas usam o mesmo programa (a mesma chave de cache); só os uniforms mudam.
+ * detail: [escala do relevo, 0 = poros / 1 = sulcos de placa, força do relevo]
+ */
+function flesh(color: number, sss: number, dis: { value: number }, o: { wave?: { uTime: { value: number }; uSwell: { value: number } }; transparent?: boolean; opacity?: number; side?: THREE.Side; repeat?: number; detail?: [number, number, number] } = {}): THREE.MeshLambertMaterial {
   const map = texSkin();
   const m = new THREE.MeshLambertMaterial({ color, map, transparent: !!o.transparent, opacity: o.opacity ?? 1, side: o.side ?? THREE.FrontSide, depthWrite: !o.transparent });
   const uSss = { value: new THREE.Color(sss) };
   const edge = { value: new THREE.Color(sss).multiplyScalar(2.2) };
+  const det = { value: new THREE.Vector3(...(o.detail ?? [11, 0.5, 0.22])) };
+  const fx = fxOf(dis);
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uSss = uSss; sh.uniforms.uDis = dis; sh.uniforms.uEdge = edge;
-    sh.vertexShader = "varying vec3 vDisP;\n" + (o.wave ? "uniform float uTime; uniform float uSwell;\n" : "") + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n  vDisP = position;" + (o.wave ? WAVE : ""));
+    sh.uniforms.uSss = uSss; sh.uniforms.uDis = dis; sh.uniforms.uEdge = edge; sh.uniforms.uDet = det;
+    sh.uniforms.uRootInv = fx.rootInv; sh.uniforms.uWound = fx.wounds; sh.uniforms.uWoundR = fx.woundR; sh.uniforms.uRim = fx.rim;
+    sh.vertexShader = "varying vec3 vDisP; varying vec3 vRootP; uniform mat4 uRootInv;\n" + (o.wave ? "uniform float uTime; uniform float uSwell;\n" : "") +
+      sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n  vDisP = position;" + (o.wave ? WAVE : ""))
+        .replace("#include <project_vertex>", "#include <project_vertex>\n  vRootP = (uRootInv * modelMatrix * vec4(transformed, 1.0)).xyz;");
     if (o.wave) { sh.uniforms.uTime = o.wave.uTime; sh.uniforms.uSwell = o.wave.uSwell; }
-    sh.fragmentShader = "uniform vec3 uSss; uniform float uDis; uniform vec3 uEdge; varying vec3 vDisP;\n" + sh.fragmentShader.replace("#include <opaque_fragment>", `
+    sh.fragmentShader = "uniform vec3 uSss; uniform float uDis; uniform vec3 uEdge; uniform vec3 uDet; uniform vec4 uWound[4]; uniform float uWoundR; uniform vec3 uRim; varying vec3 vDisP; varying vec3 vRootP;\n" + NOISE + "\n" + sh.fragmentShader
+      .replace("#include <map_fragment>", `#include <map_fragment>
+  {
+    vec3 q = vDisP * uDet.x;
+    float n1 = fhN3(q), n2 = fhN3(q * 2.7 + 7.1);
+    float ridge = 1.0 - abs(n1 * 2.0 - 1.0);
+    fhSkinH = mix(n1 * 0.65 + n2 * 0.35, ridge * 0.75 + n2 * 0.25, uDet.y);
+    diffuseColor.rgb *= 0.8 + 0.3 * fhSkinH; // sulcos escuros, placas claras
+    // feridas: carne escura no centro, borda viva
+    for (int i = 0; i < 4; i++) {
+      float d = distance(vRootP, uWound[i].xyz) / (uWoundR * (0.7 + 0.6 * n2));
+      float w = uWound[i].w * (1.0 - smoothstep(0.55, 1.0, d));
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.025, 0.02), w);
+    }
+    // cinza antes de sumir
+    float dnA = fract(sin(dot(floor(vDisP * 9.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 0.6 + fract(sin(dot(floor(vDisP * 23.0), vec3(39.34, 11.13, 83.1))) * 9631.17) * 0.4;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.045, 0.04, 0.035), step(0.001, uDis) * (1.0 - smoothstep(uDis + 0.08, uDis + 0.3, dnA)));
+  }`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+  {
+    // relevo por derivadas (sem mapa de normal): poros/sulcos acompanham a luz
+    vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition);
+    float dhx = dFdx(fhSkinH), dhy = dFdy(fhSkinH);
+    vec3 r1 = cross(dpy, normal), r2 = cross(normal, dpx);
+    float dt = dot(dpx, r1);
+    vec3 grad = sign(dt) * (dhx * r1 + dhy * r2);
+    normal = normalize(abs(dt) * normal - grad * uDet.z);
+  }`)
+      .replace("#include <opaque_fragment>", `
   float dn = fract(sin(dot(floor(vDisP * 9.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 0.6 + fract(sin(dot(floor(vDisP * 23.0), vec3(39.34, 11.13, 83.1))) * 9631.17) * 0.4;
   if (dn < uDis) discard;
   vec3 vdir = normalize(vViewPosition);
-  float rimk = pow(1.0 - clamp(abs(dot(normal, vdir)), 0.0, 1.0), 2.5);
+  float rimk = pow(1.0 - clamp(abs(dot(normalize(vNormal), vdir)), 0.0, 1.0), 2.5); // normal da malha (o relevo não acende o contorno)
   outgoingLight += uSss * (rimk * 0.45 + 0.05) * diffuseColor.rgb * 2.0;
-  outgoingLight = mix(outgoingLight, uEdge, step(dn, uDis + 0.07) * step(0.001, uDis));
+  outgoingLight += uRim * pow(rimk, 2.2); // contorno frio: silhueta legível contra azulejo claro
+  for (int i = 0; i < 4; i++) { float d = distance(vRootP, uWound[i].xyz) / uWoundR; outgoingLight += uEdge * 0.5 * uWound[i].w * smoothstep(0.6, 0.85, d) * (1.0 - smoothstep(0.85, 1.05, d)); }
+  outgoingLight = mix(outgoingLight, uEdge * (1.2 + 0.6 * fhSkinH), step(dn, uDis + 0.07) * step(0.001, uDis));
   #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => (o.wave ? "flesh-wave" : "flesh");
+  m.customProgramCacheKey = () => (o.wave ? "flesh2-wave" : "flesh2");
   return m;
 }
 

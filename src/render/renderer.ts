@@ -14,7 +14,7 @@ import { BADALO, BEACON, CARAPACA, ESTILHACO, FOLE, RISCADOR, VEU, WEAPONS } fro
 import { dirFromYawPitch } from "../core/math";
 import * as TX from "./textures";
 import { LightPool } from "./lightPool";
-import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, compactGroup, compactRig, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
+import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, compactGroup, compactRig, fishDoor, fxOf, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
 import { buildExtraDecor, DM } from "./decor";
 
 export type Quality = "baixa" | "media" | "alta";
@@ -743,6 +743,16 @@ export class Renderer {
     this.propReport.push({ kind: d.kind, id: d.id, pos: d.pos, min: bb.min.toArray().map((v) => +v.toFixed(2)), max: bb.max.toArray().map((v) => +v.toFixed(2)), support, loose });
   }
 
+  /** Ferida presa ao corpo onde o tiro pegou (até 4 por criatura; somem devagar). */
+  private addWound(cid: string, p: { x: number; y: number; z: number }, k: number) {
+    const v = this.creatures.get(cid); if (!v) return;
+    const fx = fxOf(v.rig.dissolve);
+    v.rig.root.updateMatrixWorld(true);
+    const l = v.rig.root.worldToLocal(new THREE.Vector3(p.x, p.y, p.z));
+    const w = fx.wounds.value[fx.next++ % 4];
+    w.set(l.x, l.y, l.z, Math.min(1, 0.55 + k * 0.45));
+  }
+
   /**
    * Luminária das luzes da fase: encosta no teto/laje logo acima; senão ganha dois tirantes até o teto
    * ou um poste até o piso. Entra no relatório de peças (kind "luminária").
@@ -898,6 +908,7 @@ export class Renderer {
             this.shards.emit(to, e.killed ? 4 : 9, 0xe8e0d0, 3.5, 0.6, 0.05, 9);
             this.sparks.emit(to, 6, e.marked ? 0x9fffd0 : 0x7ff6ff, 4, 0.25, 0.12, 2);
             this.hitFlashes.push({ c: e.hit, t: 0.1 });
+            this.addWound(e.hit, to, 1);
           } else if (e.normal) {
             const n = new THREE.Vector3(e.normal.x, e.normal.y, e.normal.z);
             this.sparks.emit(to, 8, 0xbff8ff, 3, 0.35, 0.09, 6, n);
@@ -1058,6 +1069,7 @@ export class Renderer {
     this.addTracer(from, to, 0xc89bff, 0.014);
     for (const h of e.hits as { id: string; killed: boolean; at: { x: number; y: number; z: number } }[]) {
       this.hitFlashes.push({ c: h.id, t: 0.1 });
+      if (h.at) this.addWound(h.id, h.at, 1);
       this.sparks.emit(this.tmpV.set(h.at.x, h.at.y, h.at.z), 8, (e.mul ?? 1) < 0.5 ? 0xffe0a0 : 0xd8b8ff, 3.5, 0.3, 0.1, 2);
       this.shards.emit(this.tmpV, h.killed ? 4 : 8, 0x6a4a40, 3, 0.6, 0.05, 9);
     }
@@ -1074,7 +1086,7 @@ export class Renderer {
     for (const pl of e.pellets as { to: { x: number; y: number; z: number }; hit: string | null; normal: { x: number; y: number; z: number } | null }[]) {
       const to = this.tmpB.set(pl.to.x, pl.to.y, pl.to.z);
       this.addTracer(from, to, 0xffc070, 0.012);
-      if (pl.hit) this.sparks.emit(to, 3, 0xffb060, 3, 0.25, 0.1, 2);
+      if (pl.hit) { this.sparks.emit(to, 3, 0xffb060, 3, 0.25, 0.1, 2); this.addWound(pl.hit, to, 0.6); }
       else if (pl.normal) { this.tmpV.set(pl.normal.x, pl.normal.y, pl.normal.z); this.sparks.emit(to, 3, 0xffd8a0, 2.5, 0.3, 0.07, 6, this.tmpV); this.shards.emit(to, 1, 0x777777, 2, 0.5, 0.03, 9, this.tmpV); }
     }
     for (const h of e.hits as { id: string; killed: boolean }[]) {
@@ -1278,6 +1290,7 @@ export class Renderer {
         shadow.rotation.x = -Math.PI / 2;
         this.dynRoot.add(rig.root, shadow);
         if (rig.beam) this.scene.add(rig.beam);
+        { const fx = fxOf(rig.dissolve); fx.woundR.value = c.type === "badalo" ? 0.32 : c.type === "carapaca" ? 0.16 : c.type === "veu" ? 0.1 : 0.075; fx.rim.value.set(c.type === "riscador" ? 0x3a6a78 : c.type === "veu" ? 0x203a36 : 0x1c2226); }
         v = { rig, c, shadow, dying: 0 };
         this.creatures.set(c.id, v);
       }
@@ -1376,6 +1389,11 @@ export class Renderer {
   }
 
   private animateCreature(v: CreatureView, sim: Sim, dt: number) {
+    {
+      const fx = fxOf(v.rig.dissolve);
+      fx.rootInv.value.copy(v.rig.root.matrixWorld).invert();
+      for (const w of fx.wounds.value) if (w.w > 0) w.w = Math.max(0.35, w.w - dt * 0.04); // a carne escurece e fica a marca
+    }
     const { rig, c } = v;
     const t = this.time;
     rig.root.position.set(c.pos.x, c.type === "badalo" ? BADALO_RAIL_Y : c.pos.y, c.pos.z);

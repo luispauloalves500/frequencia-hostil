@@ -56,7 +56,7 @@ export function compactGroup(g: THREE.Object3D) {
 }
 
 export type { CreatureRig } from "./creatures3d";
-export { buildRiscador, buildEstilhaco, buildVeu, buildCarapaca, buildBadalo, compactRig } from "./creatures3d";
+export { buildRiscador, buildEstilhaco, buildVeu, buildCarapaca, buildBadalo, compactRig, fxOf } from "./creatures3d";
 
 /** Agulha em primeira pessoa: trilho, aletas de dissipação, bobinas, mira com ponto e indicador de dardos. */
 export function buildAgulha(): WeaponView {
