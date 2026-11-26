@@ -3,9 +3,9 @@
   "ok": true,
   "checks": [
     {
-      "label": "versão v0.5.0 • D05 no menu",
+      "label": "versão v0.6.0 • D06 no menu",
       "ok": true,
-      "detail": "v0.5.0 • D05"
+      "detail": "v0.6.0 • D06"
     },
     {
       "label": "resultado da F2 libera “Seguir para a casa das bombas”",
@@ -84,8 +84,8 @@
     }
   ],
   "notes": [
-    "F2-B: [6.7s] registro 2: comporta abrindo",
+    "F2-B: [6.8s] registro 2: comporta abrindo",
     "F3: [0.9s] pegou o Tear (12/12) | [3.7s] linha do Tear no piso: true | [11.6s] faixa limpa; passagens pela linha: 1 | [16.2s] carapaça open vivo true hp 98.4 pos 40.0,0.4 | [16.2s] Carapaça trombou no batente (placas abertas): true | [17.9s] Carapaça derrubada (aberturas: 1) | [25.6s] bomba 1 ligada; persiana aberta | [38.6s] pisou na curva: pico (rampa + abertura) | [43.0s] bomba 2 ligada; duas lâmpadas; abrigo aberto | [45.2s] abrigo do poço (vida 83) | [46.3s] Badalo: entrada (batida livre na placa norte) | [82.4s] Badalo caiu em 36.2s; quedas nas placas {\"lia\":2,\"baliza\":1,\"demo\":1}; transições 1"
   ],
-  "at": "2026-11-26T13:34:11.022Z"
+  "at": "2026-11-26T18:31:42.940Z"
 }

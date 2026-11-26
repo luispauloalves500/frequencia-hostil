@@ -1,0 +1,131 @@
+
+=== D00 ===
+  · máquina de automação: Chromium headless 158.0.8127.18 • GPU: ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)
+✔ menu → sala de teste pelo botão Novo jogo
+  · ciclo 1: Lia em (13.10, 0.00, 7.19), estado playing
+  · ciclo 2: Lia em (19.63, 0.00, 1.29), estado playing
+  · ciclo 3: Lia em (12.63, 0.00, -4.04), estado playing
+  · ciclo 4: Lia em (7.86, 0.00, -0.98), estado playing
+  · ciclo 5: Lia em (17.32, 0.00, 5.66), estado playing
+✔ cinco ciclos Esc → Retomar voltam ao jogo
+✔ simulação congelada durante a pausa
+✔ Lia permanece dentro da sala
+✔ retomar não dispara
+✔ Menu principal pela pausa
+✔ com a Agulha equipada, cinco retomadas não gastam dardos — 24,24,24,24,24
+✔ sem erros no console
+
+=== D01 ===
+✔ corrida com Shift
+✔ deslize com Ctrl durante a corrida (até 3,8 m) — 3.68 m
+✔ salto com Espaço
+  · vida após cada dardo: 32 → 16 → 0
+✔ vivo após 1 e 2 dardos
+✔ Riscador cai com o terceiro dardo — disparos 3, acertos 3
+✔ cada disparo gastou um dardo — pente 21
+✔ rodada 1: errou (3 disparos, 0 acertos), recebeu dano e morreu — 9 golpes
+✔ rodada 1: "Tentar novamente" em foco
+✔ rodada 1: reinício com um único Riscador, vida e pente restaurados — {"all":1,"alive":1,"hp":100,"mag":24}
+✔ rodada 2: errou (3 disparos, 0 acertos), recebeu dano e morreu — 9 golpes
+✔ rodada 2: "Tentar novamente" em foco
+✔ rodada 2: reinício com um único Riscador, vida e pente restaurados — {"all":1,"alive":1,"hp":100,"mag":24}
+✔ sem erros no console
+
+=== D02 ===
+✔ secundário marca o Estilhaço e custa 3 dardos — pente 24 → 21
+  · tentativa 2 do acerto marcado
+✔ acerto marcado causa 16 + 32 — dano 48
+✔ Estilhaço marcado eliminado
+✔ mira inválida não gasta a baliza
+✔ atrás da grade os dois Riscadores respondem ao chamado — ["lured","lured"]
+✔ Riscador atrás da parede sólida não responde ao chamado do lado da grade
+  · recarga observada: 4.7 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)
+✔ atrás da parede sólida o Riscador mantém a patrulha — [{"state":"idle","z":9.015639078363817,"x":26.549655144824953}]
+✔ armada e sem uso por 6 s, a baliza volta pronta
+✔ a pausa congela a baliza
+✔ secundário com pente abaixo do custo: clique seco, sem impacto e sem gasto — pente 2, eventos dry
+✔ cada dardo gasto corresponde a um disparo (primário 1, secundário 3) — {"spent":22,"shots":19,"marks":1}
+✔ a segunda rota (escada, passarela, rampa) volta ao início — altura máx. 2.40 m, fim (4.4, 0.0)
+✔ sem erros no console
+
+=== D03 ===
+✔ menu inicial sem save: Continuar desabilitado
+  · carregamento de F1: 143 ms (headless, SwiftShader)
+✔ entrada do capítulo salva em F1-A — ["F1-A"]
+  · roteiro tutorial: [1.9s] pegou Agulha e baliza | [6.4s] passou sob a persiana agachado: true | [9.0s] chamado emitido na marca de giz | [9.0s] trinco aberto; Riscadores da demonstração atraídos: 2 | [13.1s] Riscador solto derrubado | [16.3s] guichê limpo | [19.1s] chegou ao abrigo F1-B (vida 100)
+✔ vestiário → armário → corredor agachado → bilheteria (baliza no giz abre o trinco) → guichê → F1-B
+✔ passou sob a persiana agachado
+✔ Riscadores da demonstração atraídos pelo chamado — 2
+✔ abrigo F1-B salvo
+  · roteiro morte: [28.4s] onda 2 anunciada — parando de lutar | [42.6s] Lia caiu na onda 2
+✔ Lia morre depois do aviso da onda 2 — Retorno em F1-B • Sobreviva às ondas e libere o painel da catraca
+✔ tela de morte com “Tentar novamente” em foco
+✔ reabrir (térreo): menu oferece Continuar em F1-B — Último registro: F1 • Última Chamada • F1-B • Normal
+✔ reabrir (térreo): volta no abrigo F1-B com divisória fechada — {"x":58.4,"y":0,"z":5}
+✔ reabrir (térreo): ondas rearmadas (arena parada, nenhum inimigo vivo)
+✔ reabrir (térreo): piso do abrigo (vida ≥ 60, reserva ≥ 24, baliza pronta) — vida 100, 13/48
+  · roteiro térreo: [18.1s] ondas encerradas — painel liberado | [21.6s] painel acionado
+✔ concluiu pelo térreo e exibiu o resultado de F1 — Tempo	1:06 • Rota até a catraca	térreo • Criaturas derrubadas	10 • Precisão da Agulha	87% • Quedas	1 • Chamados da baliza	1 • Dano recebido	0
+✔ fim de capítulo salvo (entrada da F2 gravada, F2 desbloqueada)
+✔ “Seguir para o mercado” abre a F2 • Mercado Afogado
+✔ reabrir (passarela): menu oferece Continuar em F1-B — Último registro: F1 • Última Chamada • F1-B • Normal
+✔ reabrir (passarela): volta no abrigo F1-B com divisória fechada — {"x":58.4,"y":0,"z":5}
+✔ reabrir (passarela): ondas rearmadas (arena parada, nenhum inimigo vivo)
+✔ reabrir (passarela): piso do abrigo (vida ≥ 60, reserva ≥ 24, baliza pronta) — vida 100, 13/48
+  · roteiro passarela: [2.7s] subiu a escada | [8.0s] desceu pela rampa | [13.5s] ondas encerradas — painel liberado | [14.4s] painel acionado
+✔ concluiu pela passarela (escada, dardos, rampa) e exibiu o resultado — Tempo	0:59 • Rota até a catraca	passarela • Criaturas derrubadas	10 • Precisão da Agulha	97% • Quedas	1 • Chamados da baliza	1 • Dano recebido	0
+✔ sem erros no console
+
+=== D04 ===
+✔ versão no menu — v0.6.0 • D06
+  · F1: [17.7s] ondas encerradas — painel liberado | [20.8s] painel acionado
+✔ F1 concluída: entrada da F2 salva com o inventário da F1 — {"inv":{"agulha":{"mag":14,"reserve":35}},"entry":{"agulha":{"mag":14,"reserve":35}}}
+✔ F2 começa com o inventário da F1 (Agulha, pente/reserva, baliza, vida, curativos) — {"inv":{"agulha":{"mag":14,"reserve":35}},"cur":"agulha","beacon":true,"hp":77,"kits":2,"obj":"Pegue o Fole na bancada sob a placa de gelo","t":0}
+✔ objetivo inicial da F2 — Pegue o Fole na bancada sob a placa de gelo
+  · F2 (baixo): [4.0s] pegou o Fole (8/8) | [5.6s] sopro: névoa 1.00 → 0.00 | [8.1s] passou por baixo; Véu derrubado (fole) | [15.4s] praça limpa (vida 77) | [19.4s] registro da praça aberto | [23.2s] abrigo F2-B (vida 77) | [29.8s] registro 2: comporta abrindo
+✔ roteiro F2 por baixo concluído
+✔ Fole pego na bancada sob a placa de gelo — 8
+✔ névoa do Véu cobre a passagem e o sopro a afasta — 1 → 0
+✔ rota baixa com o Fole (Véu derrubado com o Fole) — true fole
+✔ registro 2: objetivo vira “Atravesse a comporta” durante a abertura — Atravesse a comporta
+✔ abertura de 8 s com a luz em quatro segmentos — 8 s, 4 segmentos
+✔ cruzou a saída com um comum ainda vivo — vivos: 1
+✔ resultado da F2 (rota, vivos na saída, Fole, sopros) e botão para a F3 liberado — Tempo	0:44 • Rota até a praça	Por baixo (névoa, Fole) • Criaturas derrubadas	7 • Comuns vivos na saída	1 • Precisão da Agulha	100% • Fragmentos do Fole no alvo	100% • Sopros	1 • Quedas	0 • Dano recebido	52
+✔ abrigo F2-B foi salvo durante a corrida
+✔ menu oferece Continuar na F2-B — Último registro: F2 • Mercado Afogado • F2-B • Normal
+✔ F2-B reabre com o primeiro registro aberto (porta do corredor liberada, LED verde) — {"point":"F2-B","pos":{"x":73,"y":0,"z":1.4},"reg1":true,"corredor":false,"led":4259696,"fole":{"mag":6,"reserve":6}}
+  · F2 (cima): [3.1s] pegou o Fole (8/8) | [7.0s] subiu a escada da peixaria | [17.3s] atravessou por cima (toldo): true | [19.7s] praça limpa (vida 86) | [23.6s] registro da praça aberto | [27.4s] abrigo F2-B (vida 86) | [34.0s] registro 2: comporta abrindo
+✔ rota alta com a Agulha (escada, passarela, toldo)
+✔ F2 concluída por cima com comum vivo na saída — {"route":"toldo","alive":1}
+✔ sem erros no console
+
+=== D05 ===
+✔ versão v0.6.0 • D06 no menu — v0.6.0 • D06
+  · F2-B: [6.8s] registro 2: comporta abrindo
+✔ resultado da F2 libera “Seguir para a casa das bombas” — Seguir para a casa das bombas
+✔ entrada da F3 salva com o inventário da F2 (Fole incluído) e F3 desbloqueada — {"inv":{"agulha":{"mag":24,"reserve":76},"fole":{"mag":6,"reserve":20}},"entry":{"agulha":{"mag":24,"reserve":76},"fole":{"mag":6,"reserve":20}}}
+✔ F3 começa com o inventário da F2 (Agulha, Fole, baliza, curativos; sem Tear) — {"inv":{"agulha":{"mag":24,"reserve":76},"fole":{"mag":6,"reserve":20}},"beacon":true,"kits":1,"obj":"Pegue o Tear na bancada da galeria","tear":false}
+✔ objetivo inicial da F3 (Tear) — Pegue o Tear na bancada da galeria
+  · F3: [0.9s] pegou o Tear (12/12) | [3.7s] linha do Tear no piso: true | [11.6s] faixa limpa; passagens pela linha: 1 | [16.2s] carapaça open vivo true hp 98.4 pos 40.0,0.4 | [16.2s] Carapaça trombou no batente (placas abertas): true | [17.9s] Carapaça derrubada (aberturas: 1) | [25.6s] bomba 1 ligada; persiana aberta | [38.6s] pisou na curva: pico (rampa + abertura) | [43.0s] bomba 2 ligada; duas lâmpadas; abrigo aberto | [45.2s] abrigo do poço (vida 83) | [46.3s] Badalo: entrada (batida livre na placa norte) | [82.4s] Badalo caiu em 36.2s; quedas nas placas {"lia":2,"baliza":1,"demo":1}; transições 1
+✔ roteiro F3 concluído
+✔ Tear: linha na faixa dos filtros pegou um Riscador — true 1
+✔ Carapaça trombou no batente (placas abertas) e caiu — 1
+✔ passarela até a curva em U (pico)
+✔ Badalo: queda na placa pela posição e pela baliza; uma transição — {"lia":2,"baliza":1,"demo":1} t1
+✔ resultado da F3 (rota, Badalo, Tear) e F4 em breve — Tempo	1:29 • Rota na galeria baixa	Pela passarela (curva em U) • Criaturas derrubadas	11 • Badalo	0:36 • Quedas do sino nas placas	3 (baliza: 1) • Fios do Tear no alvo	105% • Linhas no piso	1 • Quedas	0 • Dano recebido	0
+✔ abrigo F3-B foi salvo durante a corrida
+✔ menu oferece Continuar na F3-B — Último registro: F3 • Casa das Bombas • F3-B • Normal
+✔ F3-B reabre com Tear, bomba 2 ligada, abrigo aberto e chefe inteiro — {"point":"F3-B","tear":true,"b2":true,"door":false,"bossHp":720,"bossMax":720}
+✔ seleção de fase: F3 liberada para repetição — F1 • Última Chamada repetição • 8–10 min|false ; F2 • Mercado Afogado repetição • 10–12 min|false ; F3 • Casa das Bombas repetição • 12–15 min|false ; Voltar|false
+✔ sem erros no console
+
+=== PROPS ===
+  · F1: apoio acrescentado em 28 peças — arrow@11.7,2.6,0 → teto (hastes) ; panel#painel@87.6,1.5,1.6 → parede (encostada) ; gateLight#luz-portao@87.6,3.6,4.7 → parede (encostada) ; arrow@61.8,2.4,5 → teto (hastes) ; cables@32,4.85,-6.5 → parede (encostada) ; poster@27,1.8,-6.73 → parede (encostada) ; poster@36,1.7,8.73 → parede (encostada) ; clawMarks@29.6,1.5,-6.73 → parede (encostada) ; exitLight@11.7,3.05,0 → parede (encostada) ; exitLight@61.8,2.85,5 → teto (hastes) ; luminária@6,3.32,0 → teto (tirantes) ; luminária@22,2.82,0 → teto (tirantes) ; luminária@30,4.52,-2 → teto (tirantes) ; luminária@34,3.12,5.5 → teto (tirantes) ; luminária@48,4.52,3 → teto (tirantes) ; luminária@53.5,4.32,-5.5 → teto (tirantes) ; luminária@59,3.72,5 → teto (tirantes) ; luminária@70,6.12,0 → piso (poste) ; luminária@82,6.12,2 → piso (poste) ; luminária@75,4.72,-7 → piso (poste) ; luminária@75,3.52,10.2 → teto (tirantes) ; luminária@86.5,4.72,4.7 → piso (poste) ; luminária@90.5,3.22,4.7 → teto (tirantes) ; luminária@93.5,3.22,4.7 → teto (tirantes) ; luminária@96.5,3.22,4.7 → teto (tirantes) ; luminária@99.3,3.22,4.7 → teto (tirantes) ; luminária@44,4.12,-2.5 → teto (tirantes) ; luminária@17,2.87,0 → teto (tirantes)
+✔ F1: 90 peças (cada malha: botões, lâmpadas, placas, luminárias), nenhuma solta no ar
+  · F2: apoio acrescentado em 31 peças — hangLamp@9.7,3.6,2.3 → teto (hastes) ; hangLamp@15.7,3.6,-3 → teto (hastes) ; arrow@23.8,2.2,0 → teto (hastes) ; cables@12,4.7,-5 → teto (hastes) ; clawMarks@30.25,1.4,-7.4 → parede (encostada) ; exitLight@23.8,2.75,0 → teto (hastes) ; cables@43,6.8,0 → parede (encostada) ; pumpHouse@150,0,-34 → piso (base) ; luminária@9.7,3.72,2.3 → teto (tirantes) ; luminária@15.7,3.72,-3 → teto (tirantes) ; luminária@20,3.52,5.9 → teto (tirantes) ; luminária@4.8,4.52,-4 → teto (tirantes) ; luminária@22,4.42,-7 → teto (tirantes) ; luminária@27,3.02,0 → teto (tirantes) ; luminária@41,6.32,-4 → teto (tirantes) ; luminária@50,6.32,4 → teto (tirantes) ; luminária@34,6.12,2 → teto (tirantes) ; luminária@43,3.32,11.6 → teto (tirantes) ; luminária@54.2,3.12,-4.5 → teto (tirantes) ; luminária@52,5.72,-10.5 → teto (tirantes) ; luminária@60,3.02,0 → teto (tirantes) ; luminária@66,3.02,0 → teto (tirantes) ; luminária@73,3.02,2.6 → teto (tirantes) ; luminária@84,6.72,2 → teto (tirantes) ; luminária@96,6.72,2 → teto (tirantes) ; luminária@100,4.72,-8.8 → teto (tirantes) ; luminária@90,3.32,11.6 → teto (tirantes) ; luminária@101.5,3.12,8 → teto (tirantes) ; luminária@102.6,5.72,4 → teto (tirantes) ; luminária@110,4.72,4 → piso (poste) ; luminária@116,4.72,8 → piso (poste)
+✔ F2: 88 peças (cada malha: botões, lâmpadas, placas, luminárias), nenhuma solta no ar
+  · F3: apoio acrescentado em 34 peças — sign@14,2.2,-1.35 → piso (pés) ; cables@14,4.85,0.8 → teto (hastes) ; cables@40,6.85,-2 → teto (hastes) ; hangLamp@34,5.7,0 → teto (hastes) ; hangLamp@45,5.7,0 → teto (hastes) ; sign@57.7,2.1,-4.8 → parede (encostada) ; cables@66,5.85,1 → teto (hastes) ; arrow@79.75,2.5,0 → teto (hastes) ; luminária@4,4.52,0 → teto (tirantes) ; luminária@13,4.52,0 → teto (tirantes) ; luminária@22,4.52,0 → teto (tirantes) ; luminária@5.2,3.12,-4.8 → teto (tirantes) ; luminária@25,2.92,7.6 → teto (tirantes) ; luminária@34,6.32,0 → teto (tirantes) ; luminária@45,6.32,0 → teto (tirantes) ; luminária@50,4.32,-6.8 → teto (tirantes) ; luminária@40,2.92,7.2 → teto (tirantes) ; luminária@58,5.42,0 → teto (tirantes) ; luminária@69,5.42,0 → teto (tirantes) ; luminária@78,5.12,-5 → teto (tirantes) ; luminária@66,5.12,6 → teto (tirantes) ; luminária@79,4.12,6.5 → teto (tirantes) ; luminária@79.2,3.72,-2.4 → teto (tirantes) ; luminária@79.2,3.72,2.4 → teto (tirantes) ; luminária@83,2.92,0 → teto (tirantes) ; luminária@92,8.32,-8 → teto (tirantes) ; luminária@108,8.32,8 → teto (tirantes) ; luminária@92,8.32,8 → teto (tirantes) ; luminária@108,8.32,-8 → teto (tirantes) ; luminária@100,3.12,0 → teto (tirantes) ; luminária@87,3.12,-12 → teto (tirantes) ; luminária@113,3.72,0 → teto (tirantes) ; luminária@122,2.82,0 → teto (tirantes) ; luminária@138,2.82,0 → teto (tirantes)
+✔ F3: 115 peças (cada malha: botões, lâmpadas, placas, luminárias), nenhuma solta no ar
+✔ sem erros no console
+
+Resumo: D00 OK • D01 OK • D02 OK • D03 OK • D04 OK • D05 OK • PROPS OK
