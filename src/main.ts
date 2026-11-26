@@ -17,7 +17,7 @@ import { angleDiff, yawTo } from "./core/math";
 import * as UI from "./ui/dom";
 import { PlanRunner, tutorialToShelter, dieInWave2, finishPraca, quickOpening, f2Full, f2TakeFole, f2LowPassage, f2HighRoute, f2Praca, f2Boia, f3Full, f3TakeTear, f3Filtros, f3Batente, f3Galeria, f3Boss, f3Exit, type Plan } from "./scenarios";
 
-export const BUILD = { version: "0.5.0", milestone: "D05" };
+export const BUILD = { version: "0.6.0", milestone: "D06" };
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);

@@ -53,7 +53,7 @@ export async function run(url) {
     await page.reload();
     await waitFor(page, () => window.__fh?.state === "menu", null, 30000, "menu");
     const ver = await page.evaluate(() => document.getElementById("buildTag").textContent);
-    R.check("versão v0.5.0 • D05 no menu", ver.includes("0.5.0") && ver.includes("D05"), ver);
+    R.check("versão v0.6.0 • D06 no menu", ver.includes("0.6.0") && ver.includes("D06"), ver);
 
     // ---- 1. F2 a partir do abrigo F2-B (inventário fora do padrão) → resultado → F3
     const f2cp = { phase: "F2", point: "F2-B", hp: 71, medkits: 2, weapons: { agulha: { mag: 20, reserve: 90 }, fole: { mag: 6, reserve: 14 } }, current: "fole", hasBeacon: true, objective: "", flags: { fole: true, registro1: true }, difficulty: "normal", playTime: 1250, deaths: 1, stats: { kills: 25, shots: 160, hits: 100, pulses: 3, damageTaken: 80, sopros: 2, foleShots: 8, foleHits: 20 } };
