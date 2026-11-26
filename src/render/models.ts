@@ -52,6 +52,20 @@ export function compactGroup(g: THREE.Object3D) {
   const keep = new Set<THREE.Object3D>();
   const add = (v: unknown) => { if (v instanceof THREE.Object3D) keep.add(v); else if (Array.isArray(v)) v.forEach(add); };
   g.traverse((o) => { if (o !== g && Object.keys(o.userData).length) keep.add(o); for (const v of Object.values(o.userData)) add(v); });
+  // subgrupos parados (mostrador, cotovelo de cano…) que nada referencia: as peças sobem para o pai e
+  // se juntam com as irmãs do mesmo material
+  const flatten = (p: THREE.Object3D) => {
+    for (const o of [...p.children]) {
+      if (!(o as THREE.Group).isGroup || keep.has(o)) continue;
+      flatten(o);
+      let pinned = false; o.traverse((x) => { if (x !== o && keep.has(x)) pinned = true; });
+      if (pinned) continue;
+      o.updateMatrix();
+      for (const c of [...o.children]) { c.updateMatrix(); c.matrix.premultiply(o.matrix); c.matrix.decompose(c.position, c.quaternion, c.scale); p.add(c); }
+      o.removeFromParent();
+    }
+  };
+  flatten(g);
   mergeByMaterial(g, keep, true);
 }
 
@@ -200,7 +214,7 @@ export function buildFerry(): THREE.Group {
   }
   for (let i = 0; i < 7; i++) { const w = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.9), winMat); w.position.set(1 + i * 1.7, 7.8, 4.01); g.add(w); }
   const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6), white); mast.position.set(-6, 9.5, 0); g.add(mast);
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0xff3030 })); lamp.position.set(-6, 12.6, 0); g.add(lamp);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff3030 })); lamp.position.set(-6, 12.6, 0); g.add(lamp);
   g.userData.lamp = lamp;
   mergeByMaterial(g, new Set<THREE.Object3D>([lamp]));
   return g;

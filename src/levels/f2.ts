@@ -200,7 +200,7 @@ const DECOR: Decor[] = [
   { kind: "clawMarks", pos: { x: 30.25, y: 1.4, z: -7.4 }, rot: EAST + Math.PI, size: { x: 0, y: 1, z: 0 } },
   { kind: "backpack", pos: { x: 37.2, y: 0, z: 2.1 }, rot: 0.6 },
   { kind: "note", pos: { x: 14, y: 0, z: 3 } },
-  { kind: "note", pos: { x: 46, y: 0, z: -3.4 } },
+  { kind: "note", pos: { x: 11.5, y: 0, z: -2.6 } },
   { kind: "floorArrow", pos: { x: 8, y: 0, z: 0 }, rot: WEST },
   { kind: "exitLight", pos: { x: 23.8, y: 2.75, z: 0 }, rot: EAST },
   { kind: "poster", pos: { x: 30.25, y: 2.2, z: -10 }, rot: EAST + Math.PI, text: "Leilão 5h", color: 0xffc070 },

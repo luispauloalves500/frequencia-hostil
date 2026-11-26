@@ -20,7 +20,7 @@ const out = await page.evaluate(() => {
   rr.renderBufferDirect = (camera, scene, geometry, material, object, group) => {
     let o = object, path = [], top = object; while (o && o !== R.scene) { if (o.name) path.push(o.name); top = o; o = o.parent; }
     const tk = top.name || (top.userData?.creature ? "criatura" : top.isGroup ? `grupo(${top.children.length})` : top.type);
-    const k = `${material.type}${material.transparent ? "/T" : ""}|${path[0] ?? "-"}|top:${tk}|${geometry.type}`;
+    const k = `${material.type}${material.transparent ? "/T" : ""}|${path[0] ?? "-"}|top:${tk}|${geometry.type}` + "|" + (material.color?.getHexString() ?? "");
     const tri = (group ? group.count : geometry.index ? geometry.index.count : geometry.attributes.position.count) / 3 * (object.isInstancedMesh ? object.count : 1); counts[k] = (counts[k] ?? 0) + 1; tris[k] = (tris[k] ?? 0) + tri; return orig(camera, scene, geometry, material, object, group);
   };
   return new Promise((res) => requestAnimationFrame(() => { for (const k in counts) { delete counts[k]; delete tris[k]; } requestAnimationFrame(() => { rr.renderBufferDirect = orig; res(Object.fromEntries(Object.keys(counts).map((k) => [k, [counts[k], Math.round(tris[k])]]))); }); }));

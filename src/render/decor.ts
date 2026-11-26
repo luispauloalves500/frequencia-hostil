@@ -1,4 +1,5 @@
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import * as THREE from "three";
 import * as TX from "./textures";
 import { signMesh, buildFoleModel } from "./models";
@@ -28,10 +29,10 @@ export const DM = {
   brass: () => std("brass", { color: 0xb08a3a, metalness: 0.9, roughness: 0.32 }),
   paper: () => std("paper", { color: 0xd8ccae, roughness: 0.95 }),
   puddle: () => std("puddle", { color: 0x3a4850, roughness: 0.03, metalness: 0.7, envMapIntensity: 2.2, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-  gore: () => std("gore", { color: 0x2a0e0a, roughness: 0.6, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-  floorPaint: () => std("floorPaint", { color: 0xb89020, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-  gouge: () => std("gouge", { color: 0x120d0b, roughness: 1 }),
-  lampExit: () => basic("lampExit", { color: 0x50ff90 }),
+  // rastros, garras e setas reaproveitam materiais que as fases já desenham (nenhuma chamada de desenho a mais)
+  gore: () => DM.puddle(), // rastro molhado e escuro (mesmo material das poças)
+  floorPaint: () => DM.paper(),
+  gouge: () => DM.rubber(),
   grime: () => std("grime", { color: 0x3a342a, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
   cloth: () => std("cloth", { color: 0x4f5a3a, roughness: 0.95 }),
   lampWarm: () => basic("lampWarm", { color: 0xffd8a0 }),
@@ -85,14 +86,14 @@ export function buildExtraDecor(g: THREE.Group, d: { kind: string; size?: { x: n
       const m = new THREE.Mesh(geo, DM.floorPaint()); m.position.y = 0.012; g.add(m);
       return true;
     }
-    case "exitLight": { // luz de emergência verde na parede, aponta a saída
+    case "exitLight": { // luz de emergência na parede, marca a passagem
       g.add(box(0.36, 0.16, 0.08, DM.darkSteel(), 0, 0, 0.04));
-      g.add(box(0.3, 0.1, 0.02, DM.lampExit(), 0, 0, 0.09));
+      g.add(box(0.3, 0.1, 0.02, DM.lampCold(), 0, 0, 0.09)); // painel aceso (material de lâmpada que as fases já usam)
       return true;
     }
     case "backpack": { // mochila largada
-      const bag = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.42, 0.2, 2, 0.06), DM.cloth()); bag.position.y = 0.2; bag.rotation.set(-0.25, 0.4, 0); g.add(bag);
-      const pocket = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.18, 0.08, 1, 0.03), DM.rubber()); pocket.position.set(0, 0.13, 0.12); pocket.rotation.set(-0.25, 0.4, 0); g.add(pocket);
+      const bag = new THREE.Mesh(mergeVertices(new RoundedBoxGeometry(0.34, 0.42, 0.2, 1, 0.06)), DM.rubber()); bag.position.y = 0.2; bag.rotation.set(-0.25, 0.4, 0); g.add(bag);
+      const pocket = new THREE.Mesh(mergeVertices(new RoundedBoxGeometry(0.24, 0.18, 0.08, 1, 0.03)), DM.steel()); pocket.position.set(0, 0.13, 0.12); pocket.rotation.set(-0.25, 0.4, 0); g.add(pocket);
       return true;
     }
     case "note": { // folha de papel caída (no piso) — aviso de evacuação
@@ -112,6 +113,9 @@ export function buildExtraDecor(g: THREE.Group, d: { kind: string; size?: { x: n
       g.add(box(3, 0.08, 1.4, DM.steel(), 0, 0.95, 0));
       const slab = box(1.6, 0.18, 0.9, DM.ice(), 0.6, 1.08, 0); g.add(slab);
       const fole = buildFoleModel().root; fole.traverse((o) => { o.frustumCulled = true; }); fole.scale.setScalar(1.6); fole.position.set(-0.4, 1.06, 0); fole.rotation.set(0, 0.5, Math.PI / 2); g.add(fole);
+      // indicadores do pente do modelo na bancada não animam: um material só para os 8 (1 chamada)
+      const led = basic("foleBenchLed", { color: 0xffa040 });
+      fole.traverse((o) => { const m = o as THREE.Mesh; const mm = m.material as THREE.MeshBasicMaterial; if (m.isMesh && mm?.isMeshBasicMaterial && mm.color?.getHex() === 0xffa040) m.material = led; });
       const glow = new THREE.PointLight(0x7fe0ff, 2.5, 3, 2); glow.position.set(-0.4, 1.5, 0); g.add(glow); ctx.lights.push(glow);
       g.userData.items = [fole]; g.userData.glow = glow;
       return true;

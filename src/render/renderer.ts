@@ -457,10 +457,11 @@ export class Renderer {
       for (let i = 0; i < 10; i++) {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.8, 8), this.mats.metal.mat); post.position.set(4 + i * 10, -0.2, -13.4); this.levelRoot.add(post);
       }
+      const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffc070, toneMapped: false }); // um material para os 4 postes: mescla numa chamada
       for (let i = 0; i < 4; i++) {
         const lamp = new THREE.PointLight(0xffb060, 18, 18, 1.6); lamp.position.set(10 + i * 26, 5, -13.5); this.levelRoot.add(lamp); this.lightPool.add(lamp);
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 5.5), this.mats.metal.mat); pole.position.set(10 + i * 26, 2.2, -13.6); this.levelRoot.add(pole);
-        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22), new THREE.MeshBasicMaterial({ color: 0xffc070, toneMapped: false })); bulb.position.set(10 + i * 26, 5, -13.5); this.levelRoot.add(bulb);
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 5.5, 8), this.mats.metal.mat); pole.position.set(10 + i * 26, 2.2, -13.6); this.levelRoot.add(pole);
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), bulbMat); bulb.position.set(10 + i * 26, 5, -13.5); this.levelRoot.add(bulb);
       }
     }
     if (env.rain) {
@@ -619,7 +620,7 @@ export class Renderer {
         const box = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.15), new THREE.MeshStandardMaterial({ color: 0x4a5258, metalness: 0.6, roughness: 0.4 }));
         const grille = new THREE.Mesh(new THREE.CircleGeometry(0.13, 16), new THREE.MeshStandardMaterial({ color: 0x15191c, roughness: 0.9 }));
         grille.position.set(0, 0.05, 0.08);
-        const led = new THREE.Mesh(new THREE.SphereGeometry(0.035), new THREE.MeshBasicMaterial({ color: 0xff3030, toneMapped: false }));
+        const led = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3030, toneMapped: false }));
         led.position.set(0, -0.17, 0.08);
         g.add(box, grille, led); g.userData.led = led;
         break;
@@ -645,7 +646,8 @@ export class Renderer {
         break;
       }
       case "panel": {
-        const box = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.18), new THREE.MeshStandardMaterial({ color: 0x3a4248, metalness: 0.6, roughness: 0.4 }));
+        const boxMat = new THREE.MeshStandardMaterial({ color: 0x3a4248, metalness: 0.6, roughness: 0.4 });
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.18), boxMat);
         const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.36), new THREE.MeshBasicMaterial({ map: TX.texSign("BLOQUEADO", "#ff4040", 512, 256), toneMapped: false }));
         screen.position.set(0, 0.12, 0.1);
         const lever = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.08), new THREE.MeshStandardMaterial({ color: 0xd04020 }));
@@ -654,7 +656,7 @@ export class Renderer {
         // marcador acima dos obstáculos
         const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), new THREE.MeshBasicMaterial({ color: 0xff4040, toneMapped: false }));
         beacon.position.set(0, 0.9, 0); g.add(beacon); g.userData.marker = beacon;
-        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.36, 6), this.mats.metal.mat); mast.position.set(0, 0.62, 0); g.add(mast); // haste do marcador
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.36, 6), boxMat); mast.position.set(0, 0.62, 0); g.add(mast); // haste do marcador
         break;
       }
       case "gateLight": {
@@ -817,8 +819,8 @@ export class Renderer {
         if (b.min.y >= bb.max.y - 0.01) up = Math.min(up, b.min.y - bb.max.y);
         if (b.max.y <= bb.min.y + 0.01) down = Math.min(down, bb.min.y - b.max.y);
       }
-      const mat = DM.darkSteel();
-      const add = (x: number, y0: number, len: number, r: number) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len + 0.04, 6), mat); m.position.set(x, y0 + len / 2, cz); this.levelRoot.add(m); this.supportBoxes.push(new THREE.Box3(new THREE.Vector3(x - r, y0 - 0.02, cz - r), new THREE.Vector3(x + r, y0 + len + 0.02, cz + r))); };
+      const mat = this.mats.metal.mat; // material de metal que a fase já desenha: os tirantes não somam chamada de desenho
+      const add = (x: number, y0: number, len: number, r: number) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len + 0.04, 5, 1, true), mat); m.position.set(x, y0 + len / 2, cz); this.levelRoot.add(m); this.supportBoxes.push(new THREE.Box3(new THREE.Vector3(x - r, y0 - 0.02, cz - r), new THREE.Vector3(x + r, y0 + len + 0.02, cz + r))); };
       if (up <= 12) { add(bb.min.x + 0.08, bb.max.y, up, 0.012); add(bb.max.x - 0.08, bb.max.y, up, 0.012); support = "teto (tirantes)"; }
       else if (down <= 10) { add(cx, bb.min.y - down, down, 0.05); support = "piso (poste)"; }
     }

@@ -126,21 +126,23 @@ function flesh(color: number, sss: number, dis: { value: number }, o: { wave?: {
 /** Detalhe que brilha (olho, fenda, núcleo): pequeno, sem tone mapping, entra no bloom com moderação. */
 const glowMat = (color: number, opacity = 1) => new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.15), toneMapped: false, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
 
-const SPH = new THREE.SphereGeometry(1, 14, 10);
+const SPH = new THREE.SphereGeometry(1, 12, 8);
 const SPH_LO = new THREE.SphereGeometry(1, 8, 6);
-const SPH_HI = new THREE.SphereGeometry(1, 20, 14);
+const SPH_HI = new THREE.SphereGeometry(1, 16, 12);
+/** peças miúdas (vértebras, olhos, verrugas): o relevo vem do shader, não da malha */
+const SPH_XS = new THREE.SphereGeometry(1, 6, 4);
 /** cone (dente, espinho, garra) já posicionado e apontado */
 function spike(r: number, len: number, m: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0, seg = 5) {
-  const o = new THREE.Mesh(new THREE.ConeGeometry(r, len, seg), m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); return o;
+  const o = new THREE.Mesh(new THREE.ConeGeometry(r, len, r < 0.016 ? Math.min(seg, 3) : seg, 1, r < 0.016), m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); return o;
 }
 /** tendão/haste fina entre dois pontos */
 function strand(a: THREE.Vector3, b: THREE.Vector3, r: number, m: THREE.Material) {
   const d = b.clone().sub(a), L = d.length();
-  const o = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, L, 5, 1), m);
+  const o = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, L, 4, 1, true), m);
   o.position.copy(a).addScaledVector(d, 0.5); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); return o;
 }
 function ell(rx: number, ry: number, rz: number, m: THREE.Material, x = 0, y = 0, z = 0, lo = false) {
-  const o = new THREE.Mesh(lo ? SPH_LO : SPH, m); o.scale.set(rx, ry, rz); o.position.set(x, y, z); return o;
+  const o = new THREE.Mesh(Math.max(rx, ry, rz) < 0.045 ? SPH_XS : lo ? SPH_LO : SPH, m); o.scale.set(rx, ry, rz); o.position.set(x, y, z); return o;
 }
 function seg(r0: number, r1: number, len: number, m: THREE.Material) {
   const o = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, len, 7, 1), m); o.position.y = -len / 2; return o;
@@ -230,7 +232,7 @@ export function buildEstilhaco(): CreatureRig {
   body.add(ell(0.15, 0.3, 0.1, meat, 0, 0.02, -0.08)); // peito de carne
   for (let i = 0; i < 7; i++) { const v = ell(0.035, 0.03, 0.04, bone, 0, 0.36 - i * 0.12, 0.15 - Math.abs(i - 3) * 0.006, true); body.add(v); } // vértebras nas costas
   for (const side of [-1, 1]) body.add(strand(new THREE.Vector3(side * 0.13, -0.45, 0.02), new THREE.Vector3(side * 0.16, -0.1, 0.0), 0.022, dark)); // tendões do flanco
-  for (let i = 0; i < 6; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.175 - i * 0.012, 0.016, 5, 14, Math.PI * 1.2), bone); r.position.set(0, 0.22 - i * 0.075, -0.02); r.rotation.set(Math.PI / 2, 0, -Math.PI * 0.1 + Math.PI); body.add(r); } // costelas
+  for (let i = 0; i < 6; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.175 - i * 0.012, 0.016, 4, 10, Math.PI * 1.2), bone); r.position.set(0, 0.22 - i * 0.075, -0.02); r.rotation.set(Math.PI / 2, 0, -Math.PI * 0.1 + Math.PI); body.add(r); } // costelas
   body.add(ell(0.2, 0.13, 0.16, bone, 0, -0.5, 0, true)); // pelve
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 0.32, 7), dark); neck.position.y = 0.6; body.add(neck);
   const head = new THREE.Group(); head.position.y = 0.82;

@@ -39,8 +39,7 @@ function dial(r: number): THREE.Group {
   const g = new THREE.Group();
   const rim = cyl(r, r, 0.05, 16, DM.brass()); rim.rotation.x = Math.PI / 2; g.add(rim);
   const face = new THREE.Mesh(new THREE.CircleGeometry(r * 0.86, 16), F.dial()); face.position.z = 0.027; g.add(face);
-  const nd = box(r * 0.08, r * 0.75, 0.01, F.needle(), 0, r * 0.3, 0.032); nd.rotation.z = -0.6 + Math.random() * 1.2; g.add(nd);
-  g.userData.needle = nd;
+  const nd = box(r * 0.08, r * 0.75, 0.01, F.needle(), 0, r * 0.3, 0.032); nd.rotation.z = -0.6 + Math.random() * 1.2; g.add(nd); // ponteiro parado: mescla com o painel
   return g;
 }
 
@@ -122,11 +121,11 @@ export function buildF3Decor(g: THREE.Group, d: D, ctx: { lights: THREE.PointLig
     case "jet": { // bocal do jato (sai da lateral da bomba 1)
       const n = cyl(0.09, 0.14, 0.4, 10, DM.brass()); n.rotation.x = Math.PI / 2; n.position.z = 0.2; g.add(n);
       g.add(cyl(0.18, 0.18, 0.05, 10, DM.darkSteel(), 0, 0, 0.02)).children.at(-1)!.rotation.x = Math.PI / 2;
-      // cano de alimentação: cotovelo atrás do flange e descida até o piso, com placa de fixação na parede
+      // cano de alimentação (mesmo aço do flange: sem chamada de desenho a mais): cotovelo atrás do flange e descida até o piso, com placa de fixação na parede
       const hy = d.pos.y;
-      g.add(cyl(0.11, 0.11, 0.16, 10, DM.rust(), 0, 0, -0.06)).children.at(-1)!.rotation.x = Math.PI / 2;
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), DM.rust())).children.at(-1)!.position.set(0, 0, -0.14);
-      g.add(cyl(0.11, 0.11, hy, 10, DM.rust(), 0, -hy / 2, -0.14));
+      g.add(cyl(0.11, 0.11, 0.16, 10, DM.darkSteel(), 0, 0, -0.06)).children.at(-1)!.rotation.x = Math.PI / 2;
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), DM.darkSteel())).children.at(-1)!.position.set(0, 0, -0.14);
+      g.add(cyl(0.11, 0.11, hy, 10, DM.darkSteel(), 0, -hy / 2, -0.14));
       g.add(box(0.36, 0.36, 0.03, DM.darkSteel(), 0, 0, -0.005));
       return true;
     }
@@ -135,7 +134,6 @@ export function buildF3Decor(g: THREE.Group, d: D, ctx: { lights: THREE.PointLig
       for (const x of [-0.6, 0.6]) g.add(box(0.06, 0.06, 0.2, DM.darkSteel(), x, 0, -0.1)); // espaçadores até a parede
       const ds: THREE.Group[] = [];
       [-0.4, 0, 0.4].forEach((x) => { const dd = dial(0.15); dd.position.set(x, 0.05, -0.15); g.add(dd); ds.push(dd); g.add(cyl(0.025, 0.025, 0.5, 6, DM.brass(), x, -0.45, -0.17)); });
-      g.userData.dials = ds;
       return true;
     }
     case "wallLamp": { // arandela com grade; acende com a bomba 2
