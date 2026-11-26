@@ -25,7 +25,7 @@ export const WAVE2: { type: CreatureType; door: string }[] = [
 ];
 
 export const F1_POINTS = {
-  latch: { x: 39.6, y: 1.5, z: -1.2 },
+  latch: { x: 39.6, y: 1.5, z: 0.45 },
   chalk: { x: 34.5, y: 0, z: 0.5 },
   locker: { x: 5.5, y: 1.3, z: -4.3 },
   panel: { x: 87.55, y: 1.5, z: 1.6 },
@@ -153,7 +153,7 @@ const DECOR: Decor[] = [
   { kind: "bell", pos: { x: 34, y: 2.6, z: 3.5 }, id: "sino" },
   { kind: "chalk", pos: { x: 34.5, y: 0.01, z: 0.5 } },
   { kind: "hatch", pos: { x: 31, y: 0, z: -6.75 }, id: "alcapao" },
-  { kind: "latch", pos: { x: 39.75, y: 1.5, z: -1.2 }, rot: EAST, id: "trinco" },
+  { kind: "latch", pos: { x: 39.72, y: 1.5, z: 0.45 }, rot: EAST, id: "trinco" },
   { kind: "sign", pos: { x: 39.75, y: 3.3, z: -1.2 }, rot: -Math.PI / 2, text: "SERVIÇO", color: 0xbfe2ff },
   { kind: "glassShards", pos: { x: 48, y: 1.1, z: -0.5 } },
   { kind: "sign", pos: { x: 48, y: 3.6, z: -6.75 }, rot: 0, text: "GUICHÊ • VENDA DE PASSAGENS", color: 0x9fc8ff },

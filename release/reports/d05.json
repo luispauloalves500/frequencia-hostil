@@ -1,0 +1,91 @@
+{
+  "name": "d05",
+  "ok": true,
+  "checks": [
+    {
+      "label": "versão v0.5.0 • D05 no menu",
+      "ok": true,
+      "detail": "v0.5.0 • D05"
+    },
+    {
+      "label": "resultado da F2 libera “Seguir para a casa das bombas”",
+      "ok": true,
+      "detail": "Seguir para a casa das bombas"
+    },
+    {
+      "label": "entrada da F3 salva com o inventário da F2 (Fole incluído) e F3 desbloqueada",
+      "ok": true,
+      "detail": "{\"inv\":{\"agulha\":{\"mag\":24,\"reserve\":76},\"fole\":{\"mag\":6,\"reserve\":20}},\"entry\":{\"agulha\":{\"mag\":24,\"reserve\":76},\"fole\":{\"mag\":6,\"reserve\":20}}}"
+    },
+    {
+      "label": "F3 começa com o inventário da F2 (Agulha, Fole, baliza, curativos; sem Tear)",
+      "ok": true,
+      "detail": "{\"inv\":{\"agulha\":{\"mag\":24,\"reserve\":76},\"fole\":{\"mag\":6,\"reserve\":20}},\"beacon\":true,\"kits\":1,\"obj\":\"Pegue o Tear na bancada da galeria\",\"tear\":false}"
+    },
+    {
+      "label": "objetivo inicial da F3 (Tear)",
+      "ok": true,
+      "detail": "Pegue o Tear na bancada da galeria"
+    },
+    {
+      "label": "roteiro F3 concluído",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "Tear: linha na faixa dos filtros pegou um Riscador",
+      "ok": true,
+      "detail": "true 1"
+    },
+    {
+      "label": "Carapaça trombou no batente (placas abertas) e caiu",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "label": "passarela até a curva em U (pico)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "Badalo: queda na placa pela posição e pela baliza; uma transição",
+      "ok": true,
+      "detail": "{\"lia\":2,\"baliza\":1,\"demo\":1} t1"
+    },
+    {
+      "label": "resultado da F3 (rota, Badalo, Tear) e F4 em breve",
+      "ok": true,
+      "detail": "Tempo\t1:29 • Rota na galeria baixa\tPela passarela (curva em U) • Criaturas derrubadas\t11 • Badalo\t0:36 • Quedas do sino nas placas\t3 (baliza: 1) • Fios do Tear no alvo\t105% • Linhas no piso\t1 • Quedas\t0 • Dano recebido\t0"
+    },
+    {
+      "label": "abrigo F3-B foi salvo durante a corrida",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "menu oferece Continuar na F3-B",
+      "ok": true,
+      "detail": "Último registro: F3 • Casa das Bombas • F3-B • Normal"
+    },
+    {
+      "label": "F3-B reabre com Tear, bomba 2 ligada, abrigo aberto e chefe inteiro",
+      "ok": true,
+      "detail": "{\"point\":\"F3-B\",\"tear\":true,\"b2\":true,\"door\":false,\"bossHp\":720,\"bossMax\":720}"
+    },
+    {
+      "label": "seleção de fase: F3 liberada para repetição",
+      "ok": true,
+      "detail": "F1 • Última Chamada repetição • 8–10 min|false ; F2 • Mercado Afogado repetição • 10–12 min|false ; F3 • Casa das Bombas repetição • 12–15 min|false ; Voltar|false"
+    },
+    {
+      "label": "sem erros no console",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "notes": [
+    "F2-B: [6.7s] registro 2: comporta abrindo",
+    "F3: [0.9s] pegou o Tear (12/12) | [3.7s] linha do Tear no piso: true | [11.6s] faixa limpa; passagens pela linha: 1 | [16.2s] carapaça open vivo true hp 98.4 pos 40.0,0.4 | [16.2s] Carapaça trombou no batente (placas abertas): true | [17.9s] Carapaça derrubada (aberturas: 1) | [25.6s] bomba 1 ligada; persiana aberta | [38.6s] pisou na curva: pico (rampa + abertura) | [43.0s] bomba 2 ligada; duas lâmpadas; abrigo aberto | [45.2s] abrigo do poço (vida 83) | [46.3s] Badalo: entrada (batida livre na placa norte) | [82.4s] Badalo caiu em 36.2s; quedas nas placas {\"lia\":2,\"baliza\":1,\"demo\":1}; transições 1"
+  ],
+  "at": "2026-11-26T11:56:29.787Z"
+}

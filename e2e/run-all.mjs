@@ -2,7 +2,7 @@
 import { startServer } from "./lib.mjs";
 const srv = await startServer();
 const results = {};
-for (const m of ["d00", "d01", "d02", "d03", "d04", "d05"]) {
+for (const m of ["d00", "d01", "d02", "d03", "d04", "d05", "props"]) {
   console.log(`\n=== ${m.toUpperCase()} ===`);
   const mod = await import(`./${m}.mjs`);
   results[m] = await mod.run(srv.url);

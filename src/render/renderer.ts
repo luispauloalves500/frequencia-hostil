@@ -15,7 +15,7 @@ import { dirFromYawPitch } from "../core/math";
 import * as TX from "./textures";
 import { LightPool } from "./lightPool";
 import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
-import { buildExtraDecor } from "./decor";
+import { buildExtraDecor, DM } from "./decor";
 
 export type Quality = "baixa" | "media" | "alta";
 
@@ -492,7 +492,8 @@ export class Renderer {
       this.rain.frustumCulled = false;
       this.levelRoot.add(this.rain);
     }
-    // decoração
+    // decoração (cada peça precisa encostar em algo: piso, parede, teto ou suporte)
+    this.propWorld = w; this.propReport = [];
     for (const d of level.decor) this.buildDecor(d);
     this.sparks.clear(); this.shards.clear();
     this.mergeStatic();
@@ -703,9 +704,75 @@ export class Renderer {
       }
     }
     this.levelRoot.add(g);
+    this.checkProp(d, g);
     for (const l of (g.userData.vlights ?? []) as THREE.PointLight[]) this.lightPool.add(l);
     if (d.id) this.decorById.set(d.id, g);
     if (d.id === "seta-comporta") g.visible = false; // acende quando a comporta abre
+  }
+
+  private propWorld: World | null = null;
+  /** Peças de decoração e o apoio encontrado (piso/parede/teto); "" = solta no ar. */
+  propReport: { kind: string; id?: string; pos: { x: number; y: number; z: number }; min: number[]; max: number[]; support: string }[] = [];
+  private checkProp(d: { kind: string; id?: string; pos: { x: number; y: number; z: number } }, g: THREE.Object3D) {
+    const w = this.propWorld; if (!w || !this.level) return;
+    g.updateMatrixWorld(true);
+    const bb = new THREE.Box3();
+    g.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.visible) { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld); bb.union(b); } });
+    if (bb.isEmpty()) return;
+    const eps = 0.06;
+    const hit = (b: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } }) =>
+      bb.min.x <= b.max.x + eps && bb.max.x >= b.min.x - eps && bb.min.y <= b.max.y + eps && bb.max.y >= b.min.y - eps && bb.min.z <= b.max.z + eps && bb.max.z >= b.min.z - eps;
+    // portas, persianas e grades que abrem não servem de apoio (a peça ficaria no ar com a porta aberta)
+    const fixed = w.boxes.filter((b) => b.id.startsWith("b") || !(b.mat === "porta" || b.mat === "persiana" || b.kind === "grate"));
+    const find = () => {
+      for (const b of fixed) if (hit(b)) return b.max.y <= bb.min.y + eps ? "piso" : b.min.y >= bb.max.y - eps ? "teto" : "parede";
+      for (const c of this.level!.ceilings) if (hit(c)) return "teto";
+      if (bb.min.y < -0.5) return "água"; // balsa, cais e casa de bombas no mar
+      return "";
+    };
+    let support = find();
+    if (!support) support = this.fixFloating(d, g, bb, w);
+    this.propReport.push({ kind: d.kind, id: d.id, pos: d.pos, min: bb.min.toArray().map((v) => +v.toFixed(2)), max: bb.max.toArray().map((v) => +v.toFixed(2)), support });
+  }
+
+  /**
+   * Peça solta: encosta na parede se estiver a poucos centímetros; senão ganha suporte visível —
+   * hastes até o teto (ou laje acima) ou pés até o piso/bancada logo abaixo; por fim, um braço até a parede.
+   */
+  private fixFloating(d: { kind: string }, g: THREE.Object3D, bb: THREE.Box3, w: World): string {
+    const all = [...w.boxes, ...this.level!.ceilings];
+    const ovY = (b: { min: { y: number }; max: { y: number } }) => b.min.y < bb.max.y && b.max.y > bb.min.y;
+    // 1) parede a até 35 cm: encosta
+    let best = 0.35, move: [number, number] | null = null;
+    for (const b of w.boxes) {
+      if (!ovY(b) || !(b.id.startsWith("b") || !(b.mat === "porta" || b.mat === "persiana" || b.kind === "grate"))) continue;
+      const ovX = b.min.x < bb.max.x && b.max.x > bb.min.x, ovZ = b.min.z < bb.max.z && b.max.z > bb.min.z;
+      if (ovX) { const g1 = b.min.z - bb.max.z, g2 = bb.min.z - b.max.z; if (g1 >= 0 && g1 < best) { best = g1; move = [0, g1 - 0.005]; } if (g2 >= 0 && g2 < best) { best = g2; move = [0, -(g2 - 0.005)]; } }
+      if (ovZ) { const g1 = b.min.x - bb.max.x, g2 = bb.min.x - b.max.x; if (g1 >= 0 && g1 < best) { best = g1; move = [g1 - 0.005, 0]; } if (g2 >= 0 && g2 < best) { best = g2; move = [-(g2 - 0.005), 0]; } }
+    }
+    if (move) { g.position.x += move[0]; g.position.z += move[1]; bb.translate(new THREE.Vector3(move[0], 0, move[1])); return "parede (encostada)"; }
+    // 2) suporte vertical: abaixo (placas e setas sobre bancada/piso perto) ou acima (teto/laje)
+    const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+    const over = (b: { min: { x: number; z: number }; max: { x: number; z: number } }, x: number, z: number) => x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z;
+    let up = Infinity, down = Infinity;
+    for (const b of all) { if (!over(b, cx, cz)) continue; if (b.min.y >= bb.max.y - 0.01) up = Math.min(up, b.min.y - bb.max.y); if (b.max.y <= bb.min.y + 0.01) down = Math.min(down, bb.min.y - b.max.y); }
+    const sx = bb.max.x - bb.min.x, sz = bb.max.z - bb.min.z;
+    const ends: [number, number][] = d.kind === "hangLamp" || d.kind === "gateLight" ? [[cx, cz]] : sx >= sz ? [[bb.min.x + sx * 0.15, cz], [bb.max.x - sx * 0.15, cz]] : [[cx, bb.min.z + sz * 0.15], [cx, bb.max.z - sz * 0.15]];
+    const rodMat = DM.darkSteel();
+    const rods = (y0: number, len: number) => { for (const [x, z] of ends) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, len + 0.04, 5), rodMat); r.position.set(x, y0 + len / 2, z); this.levelRoot.add(r); } };
+    const signLike = d.kind === "sign" || d.kind === "arrow" || d.kind === "panel";
+    if (signLike && down <= 1.4) { rods(bb.min.y - down, down); return "piso (pés)"; }
+    if (up <= 5) { rods(bb.max.y, up); return "teto (hastes)"; }
+    if (down <= 3) { rods(bb.min.y - down, down); return "piso (pés)"; }
+    // cenário distante (fora da área jogável) sobre o mar: base de concreto até abaixo da linha d'água
+    const wb = w.bounds;
+    if (bb.min.x > wb.maxX || bb.max.x < wb.minX || bb.min.z > wb.maxZ || bb.max.z < wb.minZ) {
+      const h = bb.min.y + 2.2;
+      const base = new THREE.Mesh(new THREE.BoxGeometry(sx * 1.02, h, sz * 1.02), this.mats.concreto.mat);
+      base.position.set(cx, bb.min.y - h / 2, cz); this.levelRoot.add(base);
+      return "piso (base)";
+    }
+    return "";
   }
 
   /** Reage aos eventos da simulação (efeitos visuais). */

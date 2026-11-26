@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FREQUÊNCIA HOSTIL</title>
+  <meta name="description" content="FPS de ficção científica para navegador. Porto do Sal está evacuando. Escolha onde os monstros vão ouvir o próximo som." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23070b10'/%3E%3Ccircle cx='32' cy='32' r='8' fill='%237ff6ff'/%3E%3Ccircle cx='32' cy='32' r='16' fill='none' stroke='%237ff6ff' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%237ff6ff' stroke-width='2' stroke-dasharray='6 5'/%3E%3C/svg%3E" />
+  <script type="module" crossorigin src="./assets/index-DlOBDHy3.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Bf3KdHW3.css">
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="vignette"></div>
+  <div id="hurtflash"></div>
+  <div id="fogveil"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="bossBar"><span id="bossName">Badalo</span><div id="bossTrack"><div id="bossFill"></div><div id="bossHalf"></div></div></div>
+    <div id="objective"><span class="tag">OBJETIVO</span><span id="objText"></span></div>
+    <div id="crosshair">
+      <svg viewBox="-50 -50 100 100" width="100" height="100">
+        <circle id="bRingBg" r="22" fill="none" stroke="rgba(127,246,255,0.18)" stroke-width="3" />
+        <circle id="bRing" r="22" fill="none" stroke="#7ff6ff" stroke-width="3" stroke-dasharray="138.2" stroke-dashoffset="0" transform="rotate(-90)" />
+        <g id="xh" stroke="#e8f8ff" stroke-width="2"><line x1="-9" y1="0" x2="-4" y2="0" /><line x1="4" y1="0" x2="9" y2="0" /><line x1="0" y1="-9" x2="0" y2="-4" /><line x1="0" y1="4" x2="0" y2="9" /></g>
+        <circle r="1.3" fill="#e8f8ff" />
+        <g id="hitmark" stroke="#ffffff" stroke-width="2.5" opacity="0"><line x1="-12" y1="-12" x2="-6" y2="-6" /><line x1="12" y1="-12" x2="6" y2="-6" /><line x1="-12" y1="12" x2="-6" y2="6" /><line x1="12" y1="12" x2="6" y2="6" /></g>
+      </svg>
+      <div id="bLabel"></div>
+      <div id="altCost"></div>
+    </div>
+    <div id="vitals">
+      <div class="label">VIDA</div>
+      <div id="hpBar"><div id="hpFill"></div><span id="hpNum">100</span></div>
+      <div id="medkits"><span class="kit"></span><span class="kit"></span><span class="hint">F</span></div>
+    </div>
+    <div id="ammo">
+      <div id="wSlots"></div>
+      <div id="wName">—</div>
+      <div><span id="mag">--</span><span id="reserve">/ --</span></div>
+      <div id="mode"></div>
+      <div id="reloadBar"><div id="reloadFill"></div></div>
+    </div>
+    <div id="prompt"></div>
+    <div id="subtitles"></div>
+    <div id="dirs"></div>
+    <div id="toast"></div>
+    <div id="diag" class="hidden"></div>
+  </div>
+
+  <!-- Menu principal -->
+  <div id="menu" class="screen">
+    <div class="titleBlock">
+      <div class="kicker">PORTO DO SAL • 04h17</div>
+      <h1 data-text="FREQUÊNCIA HOSTIL">FREQUÊNCIA HOSTIL</h1>
+      <div class="sub">O último barco ainda está preso às comportas.</div>
+    </div>
+    <nav class="menuList" id="mainMenu">
+      <button data-act="continue" id="btnContinue">Continuar</button>
+      <button data-act="new">Novo jogo</button>
+      <button data-act="select" id="btnSelect">Selecionar fase</button>
+      <button data-act="options">Opções</button>
+      <button data-act="credits">Créditos</button>
+    </nav>
+    <div id="continueInfo"></div>
+    <div class="foot">Mouse e teclado • clique para capturar o mouse • <span id="buildTag"></span></div>
+  </div>
+
+  <div id="difficulty" class="screen hidden panel">
+    <h2>Novo jogo</h2>
+    <p class="muted">Escolha a dificuldade. Os avisos de ataque e os tempos de preparação são os mesmos nos três modos.</p>
+    <nav class="menuList">
+      <button data-diff="historia">História <small>dano recebido 70% • curativo extra nos abrigos</small></button>
+      <button data-diff="normal" class="primary">Normal <small>valores das fichas</small></button>
+      <button data-diff="intenso">Intenso <small>dano 125% • reforços mais rápidos</small></button>
+      <button data-act="back">Voltar</button>
+    </nav>
+  </div>
+
+  <div id="select" class="screen hidden panel">
+    <h2>Selecionar fase</h2>
+    <p class="muted">A repetição usa progresso separado. O seu ponto mais avançado da campanha é preservado.</p>
+    <nav class="menuList" id="selectList"></nav>
+  </div>
+
+  <div id="options" class="screen hidden panel">
+    <h2>Opções</h2>
+    <div class="opts">
+      <label>Sensibilidade do mouse <input type="range" id="optSens" min="0.2" max="3" step="0.05" /><output></output></label>
+      <label>Campo de visão <input type="range" id="optFov" min="60" max="100" step="1" /><output></output></label>
+      <label>Inverter eixo vertical <input type="checkbox" id="optInvert" /></label>
+      <label>Volume geral <input type="range" id="optMaster" min="0" max="1" step="0.05" /><output></output></label>
+      <label>Música <input type="range" id="optMusic" min="0" max="1" step="0.05" /><output></output></label>
+      <label>Efeitos <input type="range" id="optSfx" min="0" max="1" step="0.05" /><output></output></label>
+      <label>Qualidade <select id="optQuality"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
+      <label>Desempenho <select id="optPerf"><option value="auto">Automático (ajusta a resolução só se ficar lento)</option><option value="max">Resolução máxima fixa</option></select></label>
+      <label>Tremor e clarões reduzidos <input type="checkbox" id="optReduce" /></label>
+      <label>Legendas com fundo opaco <input type="checkbox" id="optSubBg" /></label>
+      <label>Tamanho do texto <select id="optText"><option value="1">Normal</option><option value="1.2">Grande</option><option value="1.4">Muito grande</option></select></label>
+    </div>
+    <div class="keys">
+      <h3>Comandos</h3>
+      <table>
+        <tr><td>WASD + mouse</td><td>Mover e olhar</td></tr>
+        <tr><td>Shift (segurar)</td><td>Correr</td></tr>
+        <tr><td>Espaço</td><td>Pular</td></tr>
+        <tr><td>Ctrl ou C</td><td>Agachar • durante a corrida: deslizar</td></tr>
+        <tr><td>Mouse 1 / Mouse 2</td><td>Disparo primário / secundário (marca: 3 dardos)</td></tr>
+        <tr><td>R • roda • 1–4</td><td>Recarregar • trocar arma</td></tr>
+        <tr><td>Q, depois Q</td><td>Lançar a baliza • emitir o chamado</td></tr>
+        <tr><td>E • F • Esc</td><td>Interagir • curativo • pausar</td></tr>
+      </table>
+    </div>
+    <nav class="menuList"><button data-act="back">Voltar</button></nav>
+  </div>
+
+  <div id="credits" class="screen hidden panel">
+    <h2>Créditos</h2>
+    <p>FREQUÊNCIA HOSTIL — campanha original para um jogador.</p>
+    <p class="muted">Porto do Sal, Lia Vilar, Nara Reis, o Coro, as armas e os encontros pertencem a esta campanha. A inspiração em Resistance 3 orienta apenas o tom de travessia desesperada; nenhum recurso, nome, modelo ou som foi copiado.</p>
+    <p class="muted">Arte procedural em blocos e sons sintetizados em tempo real (WebAudio). Feito com Three.js e Vite.</p>
+    <nav class="menuList"><button data-act="back">Voltar</button></nav>
+  </div>
+
+  <div id="loading" class="screen hidden"><div class="loadText">Carregando…</div><div class="loadBar"><div></div></div></div>
+
+  <div id="pause" class="screen hidden panel">
+    <h2>Pausa</h2>
+    <div class="pauseObj"><span class="tag">OBJETIVO</span> <span id="pauseObj"></span></div>
+    <nav class="menuList">
+      <button data-act="resume" class="primary">Retomar</button>
+      <button data-act="options">Opções</button>
+      <button data-act="menu">Menu principal</button>
+    </nav>
+    <p class="muted small">O tempo, os projéteis e a baliza ficam congelados durante a pausa.</p>
+  </div>
+
+  <div id="clickResume" class="screen hidden"><div class="clickBox">Clique para retomar</div></div>
+
+  <div id="death" class="screen hidden panel deathPanel">
+    <h2>Lia caiu</h2>
+    <p class="muted" id="deathInfo"></p>
+    <nav class="menuList">
+      <button data-act="retry" class="primary" id="btnRetry">Tentar novamente</button>
+      <button data-act="menu">Menu</button>
+    </nav>
+  </div>
+
+  <div id="result" class="screen hidden panel resultPanel">
+    <div class="kicker">CAPÍTULO CONCLUÍDO</div>
+    <h2 id="resTitle">F1 • Última Chamada</h2>
+    <p class="muted" id="resQuote">Nara: “A primeira trava abriu. A balsa tá andando.”</p>
+    <table id="resTable"></table>
+    <nav class="menuList">
+      <button data-act="next" class="primary" id="btnNext">Seguir para o mercado</button>
+      <button data-act="menu">Menu principal</button>
+    </nav>
+  </div>
+
+</body>
+</html>
