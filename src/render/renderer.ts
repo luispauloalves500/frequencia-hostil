@@ -496,6 +496,7 @@ export class Renderer {
     this.propWorld = w; this.propReport = []; this.supportBoxes = [];
     for (const d of level.decor) this.buildDecor(d);
     for (const l of this.lights) if (l.fixture) this.mountFixture(l.fixture, w);
+    this.buildDust(level.id);
     this.sparks.clear(); this.shards.clear();
     this.mergeStatic();
     this.warmup();
@@ -752,6 +753,37 @@ export class Renderer {
       out[k] = { meshes, tris };
     }
     return out;
+  }
+
+  private dust: THREE.Points | null = null;
+  /**
+   * Poeira suspensa em volta da câmera (1 chamada de desenho): pontos num cubo de 18 m que acompanha o
+   * jogador por repetição (mod) e flutuam devagar no shader. F2 tem partículas de umidade mais azuladas.
+   */
+  private buildDust(levelId: string) {
+    if (this.dust) { this.dust.removeFromParent(); this.dust.geometry.dispose(); (this.dust.material as THREE.Material).dispose(); this.dust = null; }
+    const n = this.quality === "baixa" ? 160 : this.quality === "alta" ? 420 : 280;
+    const pos = new Float32Array(n * 3); for (let i = 0; i < pos.length; i++) pos[i] = Math.random();
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const color = levelId === "F2" ? 0x9fc8d8 : levelId === "F3" ? 0xb8c4a0 : 0xd8c8a8;
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uColor: { value: new THREE.Color(color) }, uBox: { value: new THREE.Vector3(18, 6, 18) } },
+      vertexShader: `uniform float uTime; uniform vec3 uCam; uniform vec3 uBox; varying float vA;
+        void main() {
+          vec3 p = position * uBox + vec3(sin(uTime * 0.11 + position.y * 40.0) * 0.6, uTime * (0.03 + position.x * 0.05), cos(uTime * 0.09 + position.z * 30.0) * 0.6);
+          p = mod(p - uCam + uBox * 0.5, uBox) + uCam - uBox * 0.5;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mv;
+          float d = -mv.z;
+          vA = smoothstep(0.4, 1.5, d) * (1.0 - smoothstep(6.0, 9.0, d)) * (0.5 + 0.5 * sin(uTime * 0.7 + position.z * 50.0));
+          gl_PointSize = clamp(26.0 / d, 1.0, 6.0);
+        }`,
+      fragmentShader: `uniform vec3 uColor; varying float vA;
+        void main() { vec2 c = gl_PointCoord - 0.5; float a = smoothstep(0.5, 0.1, length(c)) * vA * 0.35; if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    this.dust = new THREE.Points(geo, mat); this.dust.frustumCulled = false; this.dust.renderOrder = 4;
+    this.levelRoot.add(this.dust);
   }
 
   /** Ferida presa ao corpo onde o tiro pegou (até 4 por criatura; somem devagar). */
@@ -1227,6 +1259,7 @@ export class Renderer {
   sync(sim: Sim, dt: number, opts: { reduceFlashes: boolean }) {
     this.time += dt;
     const t = this.time;
+    if (this.dust) { const u = (this.dust.material as THREE.ShaderMaterial).uniforms; u.uTime.value = t; u.uCam.value.copy(this.camera.position); }
     // câmera
     const p = sim.player;
     const eye = p.eyePos();

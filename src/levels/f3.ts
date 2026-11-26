@@ -216,6 +216,15 @@ const DECOR: Decor[] = [
   { kind: "hangLamp", pos: { x: 34, y: 5.7, z: 0 } }, { kind: "hangLamp", pos: { x: 45, y: 5.7, z: 0 } },
   { kind: "puddle", pos: { x: 43, y: 0, z: 2 }, size: { x: 4, y: 0, z: 3 } },
   { kind: "rubble", pos: { x: 32.5, y: 0, z: 6.6 } },
+  // v0.6 • a turma da manutenção não saiu: garras, rastro, mochila e ordens de serviço no chão; setas e luzes de saída
+  { kind: "clawMarks", pos: { x: 10, y: 1.5, z: -5.95 }, size: { x: 0, y: 1.1, z: 0 } },
+  { kind: "clawMarks", pos: { x: 20, y: 1.4, z: 5.95 }, rot: SOUTH, size: { x: 0, y: 0.9, z: 0 } },
+  { kind: "dragMark", pos: { x: 14, y: 0, z: 0.8 }, rot: WEST, size: { x: 0.6, y: 0, z: 5 } },
+  { kind: "note", pos: { x: 22, y: 0, z: -2 } },
+  { kind: "note", pos: { x: 44, y: 0, z: -3.5 } },
+  { kind: "floorArrow", pos: { x: 24, y: 0, z: 0 }, rot: WEST },
+  { kind: "exitLight", pos: { x: 27.75, y: 2.85, z: 2.2 }, rot: EAST },
+  { kind: "exitLight", pos: { x: 79.75, y: 2.95, z: 0 }, rot: EAST },
   { kind: "crateStack", pos: { x: 46, y: 0, z: 7.6 } },
   { kind: "grime", pos: { x: 36, y: 0, z: -2 }, size: { x: 3, y: 0, z: 2 } },
   { kind: "jet", pos: { x: 51.2, y: 2.4, z: -4.8 }, id: "jato" },
@@ -239,6 +248,7 @@ const DECOR: Decor[] = [
   // 4 · abrigo
   { kind: "shelterSign", pos: { x: 83, y: 2.5, z: -2.8 }, rot: NORTH, text: "ABRIGO DO POÇO", color: 0xffb050 },
   { kind: "cot", pos: { x: 82.5, y: 0, z: 1.8 } },
+  { kind: "backpack", pos: { x: 84.1, y: 0, z: 1.1 }, rot: 0.8 },
   { kind: "wallDrawing", pos: { x: 84.5, y: 1.5, z: 2.8 }, rot: SOUTH, text: "PLACAS: N • SE • SO" },
   // 5 · poço de sucção
   { kind: "sign", pos: { x: 100, y: 7.2, z: -13.75 }, rot: NORTH, text: "POÇO DE SUCÇÃO", color: 0x7fe0c8 },

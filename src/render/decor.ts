@@ -1,3 +1,4 @@
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import * as THREE from "three";
 import * as TX from "./textures";
 import { signMesh, buildFoleModel } from "./models";
@@ -27,6 +28,10 @@ export const DM = {
   brass: () => std("brass", { color: 0xb08a3a, metalness: 0.9, roughness: 0.32 }),
   paper: () => std("paper", { color: 0xd8ccae, roughness: 0.95 }),
   puddle: () => std("puddle", { color: 0x3a4850, roughness: 0.03, metalness: 0.7, envMapIntensity: 2.2, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  gore: () => std("gore", { color: 0x2a0e0a, roughness: 0.6, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  floorPaint: () => std("floorPaint", { color: 0xb89020, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  gouge: () => std("gouge", { color: 0x120d0b, roughness: 1 }),
+  lampExit: () => basic("lampExit", { color: 0x50ff90 }),
   grime: () => std("grime", { color: 0x3a342a, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
   cloth: () => std("cloth", { color: 0x4f5a3a, roughness: 0.95 }),
   lampWarm: () => basic("lampWarm", { color: 0xffd8a0 }),
@@ -62,6 +67,38 @@ export interface DecorCtx { lights: THREE.PointLight[] }
 export function buildExtraDecor(g: THREE.Group, d: { kind: string; size?: { x: number; y: number; z: number }; text?: string; color?: number; id?: string; pos: { x: number; y: number; z: number } }, ctx: DecorCtx): boolean {
   const S = d.size;
   switch (d.kind) {
+    case "dragMark": { // rastro escuro de algo arrastado pelo piso (comprido em z)
+      const L = S?.z ?? 4, W = S?.x ?? 0.6;
+      for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(puddleShape(W * (1 - i * 0.18), L / 4 * 1.25, Math.floor(d.pos.x * 11 + i * 5) | 1), DM.gore()); m.position.set((i % 2 ? 0.06 : -0.05) * W, 0.011, -L / 2 + (i + 0.5) * L / 4); g.add(m); }
+      return true;
+    }
+    case "clawMarks": { // garras do Coro rasgando o azulejo (na parede: fundo em z=0)
+      const n = 4, h = S?.y ?? 1.1;
+      for (let i = 0; i < n; i++) { const m = box(0.035, h * (0.75 + (i % 2) * 0.25), 0.012, DM.gouge(), -0.15 + i * 0.1, 0, 0.004); m.rotation.z = 0.18 + i * 0.03; g.add(m); }
+      return true;
+    }
+    case "floorArrow": { // seta pintada no piso (aponta para +z local)
+      const sh = new THREE.Shape(); const w = S?.x ?? 0.7, l = S?.z ?? 1.2;
+      // em XY com a ponta em −y: depois de deitar (rotateX −90°) a ponta fica em +z e a face para cima
+      sh.moveTo(-w * 0.22, l / 2); sh.lineTo(-w * 0.22, -l * 0.1); sh.lineTo(-w / 2, -l * 0.1); sh.lineTo(0, -l / 2); sh.lineTo(w / 2, -l * 0.1); sh.lineTo(w * 0.22, -l * 0.1); sh.lineTo(w * 0.22, l / 2); sh.closePath();
+      const geo = new THREE.ShapeGeometry(sh); geo.rotateX(-Math.PI / 2);
+      const m = new THREE.Mesh(geo, DM.floorPaint()); m.position.y = 0.012; g.add(m);
+      return true;
+    }
+    case "exitLight": { // luz de emergência verde na parede, aponta a saída
+      g.add(box(0.36, 0.16, 0.08, DM.darkSteel(), 0, 0, 0.04));
+      g.add(box(0.3, 0.1, 0.02, DM.lampExit(), 0, 0, 0.09));
+      return true;
+    }
+    case "backpack": { // mochila largada
+      const bag = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.42, 0.2, 2, 0.06), DM.cloth()); bag.position.y = 0.2; bag.rotation.set(-0.25, 0.4, 0); g.add(bag);
+      const pocket = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.18, 0.08, 1, 0.03), DM.rubber()); pocket.position.set(0, 0.13, 0.12); pocket.rotation.set(-0.25, 0.4, 0); g.add(pocket);
+      return true;
+    }
+    case "note": { // folha de papel caída (no piso) — aviso de evacuação
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.3), DM.paper()); m.rotation.x = -Math.PI / 2; m.rotation.z = (d.pos.x * 1.7) % 1; m.position.y = 0.013; g.add(m);
+      return true;
+    }
     case "stall": { // banca de peixe: gelo picado, peixes, placa de preço
       g.add(box(3.3, 0.06, 1.55, DM.steel(), 0, 1.03, 0));
       const ice = box(3.1, 0.08, 1.35, DM.ice(), 0, 1.1, 0); g.add(ice);

@@ -195,6 +195,14 @@ const DECOR: Decor[] = [
   { kind: "fishCrates", pos: { x: 50, y: 0, z: 8.6 } },
   { kind: "bench", pos: { x: 52.5, y: 0, z: 2.5 }, rot: WEST },
   { kind: "luggage", pos: { x: 36, y: 0, z: 1.2 } },
+  // v0.6 • mercado abandonado às pressas
+  { kind: "dragMark", pos: { x: 40, y: 0, z: -2 }, rot: 1.0, size: { x: 0.6, y: 0, z: 5 } },
+  { kind: "clawMarks", pos: { x: 30.25, y: 1.4, z: -7.4 }, rot: EAST + Math.PI, size: { x: 0, y: 1, z: 0 } },
+  { kind: "backpack", pos: { x: 37.2, y: 0, z: 2.1 }, rot: 0.6 },
+  { kind: "note", pos: { x: 14, y: 0, z: 3 } },
+  { kind: "note", pos: { x: 46, y: 0, z: -3.4 } },
+  { kind: "floorArrow", pos: { x: 8, y: 0, z: 0 }, rot: WEST },
+  { kind: "exitLight", pos: { x: 23.8, y: 2.75, z: 0 }, rot: EAST },
   { kind: "poster", pos: { x: 30.25, y: 2.2, z: -10 }, rot: EAST + Math.PI, text: "Leilão 5h", color: 0xffc070 },
   { kind: "cables", pos: { x: 43, y: 6.8, z: 0 }, size: { x: 25, y: 0, z: 0 } },
   { kind: "skylight", pos: { x: 43, y: 7, z: -1 }, size: { x: 20, y: 0, z: 4 } },
@@ -204,6 +212,7 @@ const DECOR: Decor[] = [
   { kind: "wallDrawing", pos: { x: 73, y: 1.6, z: 4.0 }, rot: SOUTH, text: "REGISTRO 2 ↗ PLATAFORMA" },
   { kind: "shelterSign", pos: { x: 73, y: 2.7, z: 4.0 }, rot: SOUTH, text: "ABRIGO", color: 0xffb050 },
   { kind: "cot", pos: { x: 71.5, y: 0, z: 2.4 } },
+  { kind: "backpack", pos: { x: 70.1, y: 0, z: 1.6 }, rot: 2.2 },
   // casa da boia
   { kind: "sign", pos: { x: 90, y: 6.2, z: -9.75 }, rot: NORTH, text: "CASA DA BOIA • COMPORTA BAIXA", color: 0xff9a3c },
   { kind: "valve", pos: { x: 100, y: 3.7, z: -9.75 }, rot: NORTH, id: "registro2" },
