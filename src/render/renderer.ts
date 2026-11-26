@@ -14,7 +14,7 @@ import { BADALO, BEACON, CARAPACA, ESTILHACO, FOLE, RISCADOR, VEU, WEAPONS } fro
 import { dirFromYawPitch } from "../core/math";
 import * as TX from "./textures";
 import { LightPool } from "./lightPool";
-import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
+import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, compactRig, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
 import { buildExtraDecor, DM } from "./decor";
 
 export type Quality = "baixa" | "media" | "alta";
@@ -623,12 +623,14 @@ export class Renderer {
         break;
       }
       case "glassShards": {
+        // cacos numa malha só (uma chamada de desenho)
+        const shards: THREE.BufferGeometry[] = [];
         for (let i = 0; i < 14; i++) {
-          const s = new THREE.Mesh(new THREE.TetrahedronGeometry(0.05 + Math.random() * 0.08), new THREE.MeshStandardMaterial({ color: 0x9fc0d0, transparent: true, opacity: 0.6, roughness: 0.05, metalness: 0.8 }));
-          s.position.set((Math.random() - 0.5) * 5, 0.02 + Math.random() * 0.02, (Math.random() - 0.5) * 3);
-          s.rotation.set(Math.random() * 3, Math.random() * 3, 0);
-          g.add(s);
+          const sg = new THREE.TetrahedronGeometry(0.05 + Math.random() * 0.08);
+          sg.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3((Math.random() - 0.5) * 5, 0.02 + Math.random() * 0.02, (Math.random() - 0.5) * 3), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * 3, Math.random() * 3, 0)), new THREE.Vector3(1, 1, 1)));
+          shards.push(sg);
         }
+        g.add(new THREE.Mesh(mergeGeometries(shards, false)!, new THREE.MeshStandardMaterial({ color: 0x9fc0d0, transparent: true, opacity: 0.6, roughness: 0.15, metalness: 0.5 })));
         const frame = new THREE.Mesh(new THREE.BoxGeometry(6, 0.06, 0.06), this.mats.metal.mat); frame.position.y = 1.4; g.add(frame);
         for (let i = 0; i < 5; i++) { const bar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.3, 0.05), this.mats.metal.mat); bar.position.set(-3 + i * 1.5, 0.75, 0); bar.rotation.z = i === 2 ? 0.4 : 0; g.add(bar); }
         break;
@@ -1170,7 +1172,7 @@ export class Renderer {
       seen.add(c.id);
       let v = this.creatures.get(c.id);
       if (!v) {
-        const rig = c.type === "riscador" ? buildRiscador() : c.type === "veu" ? buildVeu() : c.type === "carapaca" ? buildCarapaca() : c.type === "badalo" ? buildBadalo() : buildEstilhaco();
+        const rig = compactRig(c.type === "riscador" ? buildRiscador() : c.type === "veu" ? buildVeu() : c.type === "carapaca" ? buildCarapaca() : c.type === "badalo" ? buildBadalo() : buildEstilhaco());
         const shadow = new THREE.Mesh(new THREE.CircleGeometry(c.type === "riscador" ? 0.6 : c.type === "carapaca" ? 0.95 : c.type === "badalo" ? 1.7 : 0.5, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: c.type === "veu" ? 0.25 : 0.45, depthWrite: false }));
         shadow.rotation.x = -Math.PI / 2;
         this.dynRoot.add(rig.root, shadow);

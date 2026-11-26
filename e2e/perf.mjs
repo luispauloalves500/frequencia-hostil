@@ -73,7 +73,7 @@ async function measure(scene, frames = 40) {
   });
   await page.evaluate(() => { document.getElementById("diag").style.visibility = "hidden"; });
   await sleep(300);
-  await page.screenshot({ path: `${SH}${label}-${scene}.jpg`, type: "jpeg", quality: 90 });
+  await page.screenshot({ path: `${SH}${label}-${scene}.jpg`, type: "jpeg", quality: 90, timeout: 180000 });
   await page.evaluate(() => { document.getElementById("diag").style.visibility = ""; });
   console.log(scene, JSON.stringify(r));
   return r;

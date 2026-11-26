@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { texSkin } from "./textures";
 
 /**
@@ -292,4 +293,60 @@ export function buildBadalo(): CreatureRig {
   root.add(body);
   const mark = markRing(); mark.position.y = -4.6; root.add(mark);
   return { root, body, legs: [], rims, crown: [organ], core, mats: [shell, dark, meat, darkIn], mark, head: bell, veinColor: new THREE.Color(0xffb080), dissolve, accents };
+}
+
+/**
+ * Junta as peças fixas de cada articulação que dividem material (placas, espinhos, juntas) numa
+ * malha só — o mesmo visual com bem menos chamadas de desenho por criatura. Peças animadas
+ * (as referenciadas pelo rig ou com userData) ficam separadas.
+ */
+export function compactRig(rig: CreatureRig): CreatureRig {
+  const keep = new Set<THREE.Object3D>();
+  const add = (v: unknown) => { if (v instanceof THREE.Object3D) keep.add(v); else if (Array.isArray(v)) v.forEach(add); };
+  const acc = new Set<THREE.Object3D>(rig.accents.filter((a) => a !== rig.core));
+  const rim = new Set<THREE.Object3D>(rig.rims);
+  for (const [k, v] of Object.entries(rig)) if (k !== "accents" && k !== "rims") add(v);
+  if (rig.core) keep.add(rig.core);
+  // o joelho só é posado na montagem: pode ser achatado
+  rig.root.traverse((o) => { if (Object.keys(o.userData).length) { keep.add(o); for (const [k, v] of Object.entries(o.userData)) if (k !== "knee") add(v); } });
+  // grupos intermediários sem animação (ex.: joelho) são achatados no pai
+  const flatten = (node: THREE.Object3D) => {
+    for (const ch of [...node.children]) {
+      flatten(ch);
+      if ((ch as THREE.Group).isGroup && !keep.has(ch) && ch.visible) {
+        ch.updateMatrix();
+        for (const gc of [...ch.children]) { gc.updateMatrix(); gc.matrix.premultiply(ch.matrix); gc.matrix.decompose(gc.position, gc.quaternion, gc.scale); node.add(gc); }
+        node.remove(ch);
+      }
+    }
+  };
+  flatten(rig.root);
+  const visit = (node: THREE.Object3D) => {
+    const groups = new Map<string, THREE.Mesh[]>();
+    for (const ch of node.children) {
+      const m = ch as THREE.Mesh;
+      if (!m.isMesh || keep.has(m) || m.children.length || Array.isArray(m.material) || !m.visible) continue;
+      const g = m.geometry;
+      const mat = m.material as THREE.MeshBasicMaterial;
+      const k = `${acc.has(m) ? `acc:${mat.color.getHex()}:${mat.opacity}` : rim.has(m) ? `rim:${mat.color.getHex()}:${mat.opacity}` : mat.uuid}|${g.index ? "i" : "n"}|${Object.keys(g.attributes).sort().join(",")}|${m.castShadow}|${m.receiveShadow}|${m.renderOrder}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(m);
+    }
+    for (const ms of groups.values()) {
+      if (ms.length < 2) continue;
+      const geos = ms.map((m) => { m.updateMatrix(); return m.geometry.clone().applyMatrix4(m.matrix); });
+      const merged = mergeGeometries(geos, false);
+      geos.forEach((g) => g.dispose());
+      if (!merged) continue;
+      const one = new THREE.Mesh(merged, ms[0].material);
+      one.castShadow = ms[0].castShadow; one.receiveShadow = ms[0].receiveShadow; one.renderOrder = ms[0].renderOrder;
+      for (const m of ms) node.remove(m);
+      node.add(one);
+      if (acc.has(ms[0])) { rig.accents = rig.accents.filter((a) => !ms.includes(a)); rig.accents.push(one); }
+      if (rim.has(ms[0])) { rig.rims = rig.rims.filter((a) => !ms.includes(a)); rig.rims.push(one); }
+    }
+    for (const ch of [...node.children]) visit(ch);
+  };
+  visit(rig.root);
+  return rig;
 }

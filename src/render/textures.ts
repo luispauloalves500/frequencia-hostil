@@ -385,3 +385,40 @@ export const texGravel = () => canvasTex("gravel", 256, (g, s) => {
   for (let i = 0; i < 2600; i++) { const v = 50 + r() * 70; g.fillStyle = `rgb(${v},${v * 0.95},${v * 0.82})`; g.beginPath(); g.arc(r() * s, r() * s, 1 + r() * 2.6, 0, Math.PI * 2); g.fill(); }
   for (let i = 0; i < 9; i++) { const x = r() * s, y = r() * s, rr = 14 + r() * 30; const gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, "rgba(28,40,30,0.7)"); gr.addColorStop(1, "rgba(28,40,30,0)"); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
 });
+
+/**
+ * Atlas de placas e cartazes: todas as placas de texto num só canvas (2048×2048, faixas de 128 px),
+ * para que dividam um material e a mesclagem estática junte tudo numa chamada de desenho.
+ */
+const ATLAS = 2048, ROW = 128, PAD = 4;
+let atlasCanvas: HTMLCanvasElement | null = null, atlasTex: THREE.CanvasTexture | null = null;
+let rowY = 0, rowX = 0;
+const atlasSlots = new Map<string, [number, number, number, number]>();
+export function signAtlas(text: string, color: string, w = 1024, h = 128): { tex: THREE.Texture; uv: [number, number, number, number] } | null {
+  if (!atlasCanvas) {
+    atlasCanvas = document.createElement("canvas"); atlasCanvas.width = atlasCanvas.height = ATLAS;
+    atlasTex = new THREE.CanvasTexture(atlasCanvas); atlasTex.colorSpace = THREE.SRGBColorSpace; atlasTex.anisotropy = 4;
+  }
+  const key = `${text}|${color}|${w}|${h}`;
+  let uv = atlasSlots.get(key);
+  if (!uv) {
+    const sw = Math.min(w, 1024), sh = Math.min(h, ROW);
+    if (rowX + sw + PAD > ATLAS) { rowX = 0; rowY += ROW; }
+    if (rowY + ROW > ATLAS) return null; // cheio: quem chamou usa uma textura própria
+    const src = texSign(text, color, w, h).image as HTMLCanvasElement;
+    const g = atlasCanvas.getContext("2d")!;
+    g.drawImage(src, rowX, rowY, sw, sh);
+    const x0 = rowX + PAD / 2, x1 = rowX + sw - PAD / 2, y0 = rowY + PAD / 2, y1 = rowY + sh - PAD / 2;
+    uv = [x0 / ATLAS, 1 - y1 / ATLAS, x1 / ATLAS, 1 - y0 / ATLAS];
+    atlasSlots.set(key, uv);
+    rowX += sw + PAD;
+    atlasTex!.needsUpdate = true;
+  }
+  return { tex: atlasTex!, uv };
+}
+/** Ajusta as UVs (0..1) de uma geometria para a fatia do atlas. */
+export function remapUV(geo: THREE.BufferGeometry, uv: [number, number, number, number]) {
+  const a = geo.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < a.count; i++) a.setXY(i, uv[0] + a.getX(i) * (uv[2] - uv[0]), uv[1] + a.getY(i) * (uv[3] - uv[1]));
+  a.needsUpdate = true;
+}

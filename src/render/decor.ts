@@ -104,7 +104,10 @@ export function buildExtraDecor(g: THREE.Group, d: { kind: string; size?: { x: n
     }
     case "poster": {
       const t = d.text ?? "";
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.2), std(`poster:${t}`, { map: TX.texSign(t, "#" + (d.color ?? 0xe8d9b0).toString(16).padStart(6, "0"), 256, 128), roughness: 0.9, color: 0xb0a890 }));
+      const hex = "#" + (d.color ?? 0xe8d9b0).toString(16).padStart(6, "0");
+      const pg = new THREE.PlaneGeometry(0.9, 1.2), at = TX.signAtlas(t, hex, 256, 128);
+      if (at) TX.remapUV(pg, at.uv);
+      const p = new THREE.Mesh(pg, at ? std("posterAtlas", { map: at.tex, roughness: 0.9, color: 0xb0a890 }) : std(`poster:${t}`, { map: TX.texSign(t, hex, 256, 128), roughness: 0.9, color: 0xb0a890 }));
       p.rotation.z = 0.04; g.add(p);
       return true;
     }

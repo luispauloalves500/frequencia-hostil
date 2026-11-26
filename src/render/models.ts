@@ -7,7 +7,7 @@ function rbox(w: number, h: number, d: number, r = 0.008): THREE.BufferGeometry 
   const rr = Math.min(r, Math.min(w, h, d) * 0.3);
   return rr < 0.0015 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 2, rr);
 }
-import { texFish, texGlow, texSign, texVeins } from "./textures";
+import { remapUV, signAtlas, texFish, texGlow, texSign, texVeins } from "./textures";
 
 const ceramic = () => new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.35, metalness: 0.05, flatShading: true, emissive: 0x000000 });
 const darkCeramic = () => new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.5, flatShading: true });
@@ -38,7 +38,7 @@ function mergeByMaterial(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
 }
 
 export type { CreatureRig } from "./creatures3d";
-export { buildRiscador, buildEstilhaco, buildVeu, buildCarapaca, buildBadalo } from "./creatures3d";
+export { buildRiscador, buildEstilhaco, buildVeu, buildCarapaca, buildBadalo, compactRig } from "./creatures3d";
 
 /** Agulha em primeira pessoa: trilho, aletas de dissipação, bobinas, mira com ponto e indicador de dardos. */
 export function buildAgulha(): WeaponView {
@@ -187,11 +187,16 @@ export function buildFerry(): THREE.Group {
   return g;
 }
 
+let atlasBasic: THREE.MeshBasicMaterial | null = null;
+/** Material único das placas (atlas): todas viram uma chamada de desenho depois da mesclagem. */
+function signAtlasMat(tex: THREE.Texture) { return atlasBasic ??= new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }); }
 export function signMesh(text: string, color: number, width?: number): THREE.Mesh {
   const hex = "#" + color.toString(16).padStart(6, "0");
   const w = width ?? Math.max(1.4, text.length * 0.2);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.32), new THREE.MeshBasicMaterial({ map: texSign(text, hex), toneMapped: false }));
-  return m;
+  const geo = new THREE.PlaneGeometry(w, 0.32);
+  const at = signAtlas(text, hex);
+  if (at) { remapUV(geo, at.uv); return new THREE.Mesh(geo, signAtlasMat(at.tex)); }
+  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: texSign(text, hex), toneMapped: false }));
 }
 
 export function fishDoor(): THREE.Group {
