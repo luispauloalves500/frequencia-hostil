@@ -35,7 +35,7 @@
     {
       "label": "atrás da parede sólida o Riscador mantém a patrulha",
       "ok": true,
-      "detail": "[{\"state\":\"idle\",\"z\":8.964278190987267,\"x\":26.878967399156817}]"
+      "detail": "[{\"state\":\"idle\",\"z\":8.969504744215818,\"x\":27.130355495083972}]"
     },
     {
       "label": "armada e sem uso por 6 s, a baliza volta pronta",
@@ -60,7 +60,7 @@
     {
       "label": "a segunda rota (escada, passarela, rampa) volta ao início",
       "ok": true,
-      "detail": "altura máx. 2.40 m, fim (4.4, 0.0)"
+      "detail": "altura máx. 2.40 m, fim (4.6, -0.0)"
     },
     {
       "label": "sem erros no console",
@@ -70,7 +70,7 @@
   ],
   "notes": [
     "tentativa 2 do acerto marcado",
-    "recarga observada: 4.3 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)"
+    "recarga observada: 4.5 s (5 s de jogo; a tela headless roda perto de 10 quadros/s)"
   ],
-  "at": "2026-11-25T23:07:22.124Z"
+  "at": "2026-11-26T13:25:51.464Z"
 }

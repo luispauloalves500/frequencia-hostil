@@ -3,9 +3,9 @@
   "ok": true,
   "checks": [
     {
-      "label": "versão v0.4.0 • D04 no menu",
+      "label": "versão no menu",
       "ok": true,
-      "detail": "v0.4.0 • D04"
+      "detail": "v0.5.0 • D05"
     },
     {
       "label": "F1 concluída: entrada da F2 salva com o inventário da F1",
@@ -58,7 +58,7 @@
       "detail": "vivos: 1"
     },
     {
-      "label": "resultado da F2 (rota, vivos na saída, Fole, sopros)",
+      "label": "resultado da F2 (rota, vivos na saída, Fole, sopros) e botão para a F3 liberado",
       "ok": true,
       "detail": "Tempo\t0:43 • Rota até a praça\tPor baixo (névoa, Fole) • Criaturas derrubadas\t7 • Comuns vivos na saída\t1 • Precisão da Agulha\t100% • Fragmentos do Fole no alvo\t100% • Sopros\t1 • Quedas\t0 • Dano recebido\t52"
     },
@@ -94,9 +94,9 @@
     }
   ],
   "notes": [
-    "F1: [18.6s] ondas encerradas — painel liberado | [21.6s] painel acionado",
+    "F1: [17.9s] ondas encerradas — painel liberado | [21.0s] painel acionado",
     "F2 (baixo): [3.1s] pegou o Fole (8/8) | [4.7s] sopro: névoa 1.00 → 0.00 | [7.2s] passou por baixo; Véu derrubado (fole) | [14.5s] praça limpa (vida 77) | [18.5s] registro da praça aberto | [22.3s] abrigo F2-B (vida 77) | [28.8s] registro 2: comporta abrindo",
     "F2 (cima): [3.1s] pegou o Fole (8/8) | [7.0s] subiu a escada da peixaria | [17.3s] atravessou por cima (toldo): true | [19.7s] praça limpa (vida 86) | [23.6s] registro da praça aberto | [27.4s] abrigo F2-B (vida 86) | [34.0s] registro 2: comporta abrindo"
   ],
-  "at": "2026-11-25T23:12:42.967Z"
+  "at": "2026-11-26T13:31:19.270Z"
 }
