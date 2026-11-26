@@ -50,10 +50,16 @@ await page.evaluate(() => {
   };
 });
 
-async function measure(scene, frames = 40) {
+async function measure(scene, frames = 40, retry = false) {
   await sleep(1500);
   await page.evaluate(() => { window.gc?.(); const P = window.__perf; P.js = []; P.sync = []; P.heap = []; P.calls = []; P.tris = []; P.prog0 = window.__fh.game.renderer.renderer.info.programs?.length ?? 0; P.on = true; });
-  await waitFor(page, (n) => window.__perf.js.length >= n, frames, 300000, "quadros");
+  try { await waitFor(page, (n) => window.__perf.js.length >= n, frames, 120000, "quadros"); }
+  catch (e) {
+    // SwiftShader às vezes para de entregar quadros num cenário; com amostra parcial suficiente segue, senão tenta de novo
+    const got = await page.evaluate(() => window.__perf.js.length);
+    console.error(`${scene}: só ${got} quadros em 120 s`);
+    if (got < 10) { if (retry) throw e; await page.evaluate(() => { window.__fh.setSpeed(1); }); await sleep(2000); await page.evaluate(() => window.__fh.setSpeed(0)); return measure(scene, frames, true); }
+  }
   const r = await page.evaluate(() => {
     const P = window.__perf; P.on = false;
     const R = window.__fh.game.renderer, info = R.renderer.info;
