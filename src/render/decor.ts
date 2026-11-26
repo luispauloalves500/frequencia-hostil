@@ -176,11 +176,11 @@ export function buildExtraDecor(g: THREE.Group, d: { kind: string; size?: { x: n
     }
     case "buoyBell": { // boia em forma de sino (a saída)
       const body = new THREE.Group();
-      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.9, 1.6, 16, 1, true), std("buoyRed", { color: 0xb8401c, roughness: 0.55, metalness: 0.3, side: THREE.DoubleSide })); bell.position.y = 1.1;
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), std("buoyRed", {})); cap.position.y = 1.9;
+      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.9, 1.6, 16, 1, true), std("buoyRed", { color: 0xb8401c, roughness: 0.55, metalness: 0.3, side: THREE.DoubleSide })); bell.position.y = 1.0; // apoiada na base (0,2)
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), std("buoyRed", {})); cap.position.y = 1.8;
       const band = cyl(0.62, 0.7, 0.18, 16, std("buoyWhite", { color: 0xd8d4c8, roughness: 0.6 }), 0, 0.9, 0);
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.03, 6, 14), DM.rust()); ring.position.y = 2.3;
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), basic("buoyLamp", { color: 0xffd040 })); lamp.position.y = 2.1;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.03, 6, 14), DM.rust()); ring.position.y = 2.36;
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), basic("buoyLamp", { color: 0xffd040 })); lamp.position.y = 2.2;
       body.add(bell, cap, band, ring, lamp);
       g.add(body, cyl(0.95, 0.95, 0.2, 16, DM.darkSteel(), 0, 0.1, 0));
       g.userData.swingBody = body;

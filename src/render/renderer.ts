@@ -493,8 +493,9 @@ export class Renderer {
       this.levelRoot.add(this.rain);
     }
     // decoração (cada peça precisa encostar em algo: piso, parede, teto ou suporte)
-    this.propWorld = w; this.propReport = [];
+    this.propWorld = w; this.propReport = []; this.supportBoxes = [];
     for (const d of level.decor) this.buildDecor(d);
+    for (const l of this.lights) if (l.fixture) this.mountFixture(l.fixture, w);
     this.sparks.clear(); this.shards.clear();
     this.mergeStatic();
     this.warmup();
@@ -637,6 +638,7 @@ export class Renderer {
       }
       case "cot": {
         const c = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.12, 0.8), new THREE.MeshStandardMaterial({ color: 0x4f5a3a, roughness: 0.9 })); c.position.y = 0.45; g.add(c);
+        for (const [lx, lz] of [[-0.85, -0.33], [0.85, -0.33], [-0.85, 0.33], [0.85, 0.33]]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4, 5), this.mats.metal.mat); leg.position.set(lx, 0.2, lz); g.add(leg); } // pés do catre
         const crate = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.5), this.mats.madeira.mat); crate.position.set(1.6, 0.25, 0.2); g.add(crate);
         const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.25, 8), new THREE.MeshBasicMaterial({ color: 0xffb050, toneMapped: false })); lamp.position.set(1.6, 0.65, 0.2); g.add(lamp);
         break;
@@ -650,7 +652,8 @@ export class Renderer {
         g.add(box, screen, lever); g.userData.screen = screen; g.userData.lever = lever;
         // marcador acima dos obstáculos
         const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), new THREE.MeshBasicMaterial({ color: 0xff4040, toneMapped: false }));
-        beacon.position.set(0, 0.9, 0.3); g.add(beacon); g.userData.marker = beacon;
+        beacon.position.set(0, 0.9, 0); g.add(beacon); g.userData.marker = beacon;
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.36, 6), this.mats.metal.mat); mast.position.set(0, 0.62, 0); g.add(mast); // haste do marcador
         break;
       }
       case "gateLight": {
@@ -671,7 +674,7 @@ export class Renderer {
       case "turnstile": {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1, 10), this.mats.metal.mat); post.position.y = 0.5;
         g.add(post);
-        for (let i = 0; i < 3; i++) { const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8), this.mats.metal.mat); arm.rotation.z = Math.PI / 2; arm.rotation.y = (i * Math.PI * 2) / 3; arm.position.y = 0.95; arm.translateX(0.4); g.add(arm); }
+        for (let i = 0; i < 3; i++) { const a = (i * Math.PI * 2) / 3; const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8), this.mats.metal.mat); arm.rotation.z = Math.PI / 2; arm.rotation.y = a; arm.position.set(-Math.cos(a) * 0.4, 0.95, Math.sin(a) * 0.4); g.add(arm); } // braços saem do eixo (antes ficavam no ar acima)
         const top = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.4), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })); top.position.y = 1.05; g.add(top);
         break;
       }
@@ -714,7 +717,9 @@ export class Renderer {
 
   private propWorld: World | null = null;
   /** Peças de decoração e o apoio encontrado (piso/parede/teto); "" = solta no ar. */
-  propReport: { kind: string; id?: string; pos: { x: number; y: number; z: number }; min: number[]; max: number[]; support: string }[] = [];
+  propReport: { kind: string; id?: string; pos: { x: number; y: number; z: number }; min: number[]; max: number[]; support: string; loose?: string[] }[] = [];
+  /** suportes acrescentados (hastes, pés, bases) em coordenadas do mundo */
+  private supportBoxes: THREE.Box3[] = [];
   private checkProp(d: { kind: string; id?: string; pos: { x: number; y: number; z: number } }, g: THREE.Object3D) {
     const w = this.propWorld; if (!w || !this.level) return;
     g.updateMatrixWorld(true);
@@ -734,7 +739,103 @@ export class Renderer {
     };
     let support = find();
     if (!support) support = this.fixFloating(d, g, bb, w);
-    this.propReport.push({ kind: d.kind, id: d.id, pos: d.pos, min: bb.min.toArray().map((v) => +v.toFixed(2)), max: bb.max.toArray().map((v) => +v.toFixed(2)), support });
+    const loose = support ? this.loosePieces(g, w) : [];
+    this.propReport.push({ kind: d.kind, id: d.id, pos: d.pos, min: bb.min.toArray().map((v) => +v.toFixed(2)), max: bb.max.toArray().map((v) => +v.toFixed(2)), support, loose });
+  }
+
+  /**
+   * Luminária das luzes da fase: encosta no teto/laje logo acima; senão ganha dois tirantes até o teto
+   * ou um poste até o piso. Entra no relatório de peças (kind "luminária").
+   */
+  private mountFixture(f: THREE.Mesh, w: World) {
+    f.updateMatrixWorld(true);
+    f.geometry.computeBoundingBox();
+    const bb = f.geometry.boundingBox!.clone().applyMatrix4(f.matrixWorld);
+    const all = [...w.boxes.filter((b) => b.id.startsWith("b") || !(b.mat === "porta" || b.mat === "persiana" || b.kind === "grate")), ...this.level!.ceilings];
+    const e = 0.025;
+    const touch = all.some((b) => bb.min.x <= b.max.x + e && bb.max.x >= b.min.x - e && bb.min.y <= b.max.y + e && bb.max.y >= b.min.y - e && bb.min.z <= b.max.z + e && bb.max.z >= b.min.z - e);
+    const pos = { x: +f.position.x.toFixed(2), y: +f.position.y.toFixed(2), z: +f.position.z.toFixed(2) };
+    let support = touch ? "teto" : "";
+    if (!touch) {
+      const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+      let up = Infinity, down = Infinity;
+      for (const b of all) {
+        if (cx < b.min.x || cx > b.max.x || cz < b.min.z || cz > b.max.z) continue;
+        if (b.min.y >= bb.max.y - 0.01) up = Math.min(up, b.min.y - bb.max.y);
+        if (b.max.y <= bb.min.y + 0.01) down = Math.min(down, bb.min.y - b.max.y);
+      }
+      const mat = DM.darkSteel();
+      const add = (x: number, y0: number, len: number, r: number) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len + 0.04, 6), mat); m.position.set(x, y0 + len / 2, cz); this.levelRoot.add(m); this.supportBoxes.push(new THREE.Box3(new THREE.Vector3(x - r, y0 - 0.02, cz - r), new THREE.Vector3(x + r, y0 + len + 0.02, cz + r))); };
+      if (up <= 12) { add(bb.min.x + 0.08, bb.max.y, up, 0.012); add(bb.max.x - 0.08, bb.max.y, up, 0.012); support = "teto (tirantes)"; }
+      else if (down <= 10) { add(cx, bb.min.y - down, down, 0.05); support = "piso (poste)"; }
+    }
+    this.propReport.push({ kind: "luminária", pos, min: bb.min.toArray().map((v) => +v.toFixed(2)), max: bb.max.toArray().map((v) => +v.toFixed(2)), support, loose: [] });
+  }
+
+  /**
+   * Cada malha visível da peça (botão, lâmpada, placa, luminária) precisa encostar numa superfície fixa
+   * (piso, parede, teto, suporte acrescentado) ou numa malha da mesma peça que encoste — por contato de caixas.
+   * Devolve as que ficaram soltas.
+   */
+  private loosePieces(g: THREE.Object3D, w: World): string[] {
+    const e = 0.025;
+    type B = { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } };
+    const near = (a: B, b: B) =>
+      a.min.x <= b.max.x + e && a.max.x >= b.min.x - e && a.min.y <= b.max.y + e && a.max.y >= b.min.y - e && a.min.z <= b.max.z + e && a.max.z >= b.min.z - e;
+    // caixas de colisão invisíveis (noRender) não contam: a peça precisa encostar em algo que se vê
+    const fixed: B[] = [...w.boxes.filter((b) => !b.noRender && (b.id.startsWith("b") || !(b.mat === "porta" || b.mat === "persiana" || b.kind === "grate"))), ...this.level!.ceilings, ...this.supportBoxes];
+    const collect = () => {
+      g.updateMatrixWorld(true);
+      const items: { m: THREE.Mesh; b: THREE.Box3 }[] = [];
+      g.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        let p: THREE.Object3D | null = m; while (p && p !== g) { if (!p.visible) return; p = p.parent; }
+        m.geometry.computeBoundingBox();
+        items.push({ m, b: m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld) });
+      });
+      const ok = new Set<number>(), queue: number[] = [];
+      items.forEach((it, i) => { if (it.b.min.y < -0.5 || fixed.some((b) => near(it.b, b))) { ok.add(i); queue.push(i); } });
+      while (queue.length) { const i = queue.pop()!; items.forEach((it, j) => { if (!ok.has(j) && near(it.b, items[i].b)) { ok.add(j); queue.push(j); } }); }
+      return { items, ok };
+    };
+    /** menor deslocamento num eixo que faz `a` encostar em algum alvo (até `max` metros) */
+    const snap = (a: THREE.Box3, targets: B[], max: number): THREE.Vector3 | null => {
+      let best = max, d: THREE.Vector3 | null = null;
+      const ax = ["x", "y", "z"] as const;
+      for (const t of targets) for (const k of ax) {
+        const o = ax.filter((q) => q !== k);
+        if (!o.every((q) => a.min[q] <= t.max[q] + e && a.max[q] >= t.min[q] - e)) continue;
+        const g1 = t.min[k] - a.max[k], g2 = a.min[k] - t.max[k];
+        if (g1 >= 0 && g1 < best) { best = g1; d = new THREE.Vector3(); d[k] = g1 - 0.004; }
+        if (g2 >= 0 && g2 < best) { best = g2; d = new THREE.Vector3(); d[k] = -(g2 - 0.004); }
+      }
+      return d;
+    };
+    let { items, ok } = collect();
+    if (!items.length) return [];
+    // peça inteira solta (ex.: arandela a centímetros da parede): a peça toda encosta
+    if (ok.size === 0) {
+      const bb = new THREE.Box3(); for (const it of items) bb.union(it.b);
+      const d = snap(bb, fixed, 0.35);
+      if (d) { g.position.add(d); ({ items, ok } = collect()); }
+    }
+    // malhas soltas a poucos centímetros (placa, botão, lâmpada): encostam na superfície ou na peça vizinha
+    for (let pass = 0; pass < 3 && ok.size < items.length; pass++) {
+      let moved = false;
+      items.forEach((it, i) => {
+        if (ok.has(i)) return;
+        const d = snap(it.b, [...fixed, ...items.filter((_, j) => ok.has(j)).map((x) => x.b)], 0.08);
+        if (!d) return;
+        const par = it.m.parent!;
+        const p0 = it.m.getWorldPosition(new THREE.Vector3()).add(d);
+        it.m.position.copy(par.worldToLocal(p0));
+        moved = true;
+      });
+      if (!moved) break;
+      ({ items, ok } = collect());
+    }
+    return items.filter((_, i) => !ok.has(i)).map((it) => `${it.m.geometry.type.replace("Geometry", "")}@${it.b.getCenter(new THREE.Vector3()).toArray().map((v) => v.toFixed(2)).join(",")}`);
   }
 
   /**
@@ -761,7 +862,7 @@ export class Renderer {
     const sx = bb.max.x - bb.min.x, sz = bb.max.z - bb.min.z;
     const ends: [number, number][] = d.kind === "hangLamp" || d.kind === "gateLight" ? [[cx, cz]] : sx >= sz ? [[bb.min.x + sx * 0.15, cz], [bb.max.x - sx * 0.15, cz]] : [[cx, bb.min.z + sz * 0.15], [cx, bb.max.z - sz * 0.15]];
     const rodMat = DM.darkSteel();
-    const rods = (y0: number, len: number) => { for (const [x, z] of ends) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, len + 0.04, 5), rodMat); r.position.set(x, y0 + len / 2, z); this.levelRoot.add(r); } };
+    const rods = (y0: number, len: number) => { for (const [x, z] of ends) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, len + 0.04, 5), rodMat); r.position.set(x, y0 + len / 2, z); this.levelRoot.add(r); this.supportBoxes.push(new THREE.Box3(new THREE.Vector3(x - 0.012, y0 - 0.02, z - 0.012), new THREE.Vector3(x + 0.012, y0 + len + 0.02, z + 0.012))); } };
     const signLike = d.kind === "sign" || d.kind === "arrow" || d.kind === "panel";
     if (signLike && down <= 1.4) { rods(bb.min.y - down, down); return "piso (pés)"; }
     if (up <= 5) { rods(bb.max.y, up); return "teto (hastes)"; }
@@ -771,7 +872,7 @@ export class Renderer {
     if (bb.min.x > wb.maxX || bb.max.x < wb.minX || bb.min.z > wb.maxZ || bb.max.z < wb.minZ) {
       const h = bb.min.y + 2.2;
       const base = new THREE.Mesh(new THREE.BoxGeometry(sx * 1.02, h, sz * 1.02), this.mats.concreto.mat);
-      base.position.set(cx, bb.min.y - h / 2, cz); this.levelRoot.add(base);
+      base.position.set(cx, bb.min.y - h / 2, cz); this.levelRoot.add(base); this.supportBoxes.push(new THREE.Box3().setFromObject(base));
       return "piso (base)";
     }
     return "";

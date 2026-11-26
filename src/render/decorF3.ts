@@ -111,15 +111,23 @@ export function buildF3Decor(g: THREE.Group, d: D, ctx: { lights: THREE.PointLig
       for (let i = 0; i < 3; i++) { const sp = box(0.62, 0.035, 0.035, DM.steel()); sp.rotation.z = (i * Math.PI) / 3; wheel.add(sp); }
       g.add(wheel, cyl(0.04, 0.04, 0.3, 8, DM.steel(), 0, 0.35 + h * 0.38, dd / 2 - 0.1)).children.at(-1)!.rotation.x = Math.PI / 2;
       g.add(rb(0.5, 0.5 + h * 0.38, 0.3, DM.darkSteel(), 0, (0.5 + h * 0.38) / 2, dd / 2 - 0.25));
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), basic(`plamp-${d.id}`, { color: 0xff3a20 })); lamp.position.set(w * 0.3, 0.6, dd / 2 + 0.02); g.add(lamp);
-      g.add(cyl(0.09, 0.09, 0.06, 10, DM.darkSteel(), w * 0.3, 0.6, dd / 2 - 0.02)).children.at(-1)!.rotation.x = Math.PI / 2;
-      const tag = signMesh(d.id === "bomba2" ? "BOMBA 2" : "BOMBA 1", 0xffb060, 0.9); tag.position.set(-w * 0.25, 0.75, dd / 2 + 0.005); g.add(tag);
+      // lâmpada de estado embutida na frente do pedestal do volante (antes ficava no ar diante da base)
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), basic(`plamp-${d.id}`, { color: 0xff3a20 })); lamp.position.set(0.16, 0.5, dd / 2 - 0.07); g.add(lamp);
+      g.add(cyl(0.085, 0.085, 0.05, 10, DM.darkSteel(), 0.16, 0.5, dd / 2 - 0.085)).children.at(-1)!.rotation.x = Math.PI / 2;
+      // plaqueta na face da base
+      const tag = signMesh(d.id === "bomba2" ? "BOMBA 2" : "BOMBA 1", 0xffb060, Math.min(0.9, w * 0.3)); tag.scale.y = 0.8; tag.position.set(-w * 0.25, 0.175, dd / 2 + 0.006); g.add(tag);
       g.userData.wheel = wheel; g.userData.lamp = lamp;
       return true;
     }
     case "jet": { // bocal do jato (sai da lateral da bomba 1)
       const n = cyl(0.09, 0.14, 0.4, 10, DM.brass()); n.rotation.x = Math.PI / 2; n.position.z = 0.2; g.add(n);
       g.add(cyl(0.18, 0.18, 0.05, 10, DM.darkSteel(), 0, 0, 0.02)).children.at(-1)!.rotation.x = Math.PI / 2;
+      // cano de alimentação: cotovelo atrás do flange e descida até o piso, com placa de fixação na parede
+      const hy = d.pos.y;
+      g.add(cyl(0.11, 0.11, 0.16, 10, DM.rust(), 0, 0, -0.06)).children.at(-1)!.rotation.x = Math.PI / 2;
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), DM.rust())).children.at(-1)!.position.set(0, 0, -0.14);
+      g.add(cyl(0.11, 0.11, hy, 10, DM.rust(), 0, -hy / 2, -0.14));
+      g.add(box(0.36, 0.36, 0.03, DM.darkSteel(), 0, 0, -0.005));
       return true;
     }
     case "gauges": { // painel de manômetros na parede, com placa e tubos até a parede

@@ -11,7 +11,7 @@ export async function run(url) {
       await waitFor(page, (lv) => (window.__fh.state === "playing" || window.__fh.state === "paused") && window.__fh.sim?.level.id === lv, lv, 30000, lv);
       const r = await page.evaluate(() => ({ total: window.__fh.game.renderer.propReport.length, floating: window.__fh.floatingProps(), fixed: window.__fh.game.renderer.propReport.filter((p) => p.support.includes("(")) }));
       R.note(`${lv}: apoio acrescentado em ${r.fixed.length} peças — ` + r.fixed.map((p) => `${p.kind}${p.id ? "#" + p.id : ""}@${p.pos.x},${p.pos.y},${p.pos.z} → ${p.support}`).join(" ; "));
-      R.check(`${lv}: ${r.total} peças de decoração, nenhuma solta no ar`, r.total > 0 && r.floating.length === 0, r.floating.map((p) => `${p.kind}${p.id ? "#" + p.id : ""} @${p.pos.x},${p.pos.y},${p.pos.z} [${p.min.join(",")}]→[${p.max.join(",")}]`).join(" ; "));
+      R.check(`${lv}: ${r.total} peças (cada malha: botões, lâmpadas, placas, luminárias), nenhuma solta no ar`, r.total > 0 && r.floating.length === 0, r.floating.map((p) => `${p.kind}${p.id ? "#" + p.id : ""} @${p.pos.x},${p.pos.y},${p.pos.z} [${p.min.join(",")}]→[${p.max.join(",")}]${p.loose?.length ? " soltas: " + p.loose.join(" ") : ""}`).join("\n    ; "));
     }
     R.check("sem erros no console", errors.length === 0, errors.slice(0, 3).join(" | "));
   } catch (e) { R.check("execução sem exceção", false, String(e)); }
