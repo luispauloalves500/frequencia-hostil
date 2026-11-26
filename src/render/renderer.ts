@@ -40,12 +40,35 @@ function makeMaterials(): Record<string, MatDef> {
     armario: { mat: std(TX.texLocker(), { metalness: 0.4, roughness: 0.5 }), size: 2 },
     balcao: { mat: std(TX.texCounter(), { roughness: 0.6 }), size: 1.5 },
     teto: { mat: std(TX.texCeiling(), { roughness: 0.9 }), size: 2 },
-    gelo: { mat: std(TX.texIce(), { roughness: 0.22, roughnessMap: wet(13, 0.7), metalness: 0.05, envMapIntensity: 1.1 }), size: 3 },
-    "gelo-parede": { mat: std(TX.texIceWall(), { roughness: 0.35, envMapIntensity: 0.8 }), size: 3 },
+    gelo: { mat: std(TX.texIce(), { roughness: 0.4, roughnessMap: wet(13, 0.7), metalness: 0.0, envMapIntensity: 0.7, color: 0xd0dce2 }), size: 3 },
+    "gelo-parede": { mat: std(TX.texIceWall(), { roughness: 0.5, envMapIntensity: 0.5, color: 0xd6e0e6 }), size: 3 },
     toldo: { mat: std(TX.texAwning(), { roughness: 0.9 }), size: 2 },
     bancaAzul: { mat: std(TX.texBluePaint(), { roughness: 0.6 }), size: 2 },
     comporta: { mat: std(TX.texGate(), { metalness: 0.55, roughness: 0.55 }), size: 3 },
   };
+}
+
+/** Brilho das luminárias (sem tone mapping): passa um pouco do limiar do bloom, brilha sem estourar. */
+const FIXTURE_GLOW = 1.25;
+/**
+ * Luz pontual perto de parede ou piso estourava a superfície para branco (corredor baixo, placa de gelo).
+ * Limita a intensidade pela distância até a superfície mais próxima, para que a radiância ali fique
+ * perto de 1 (antes do tone mapping): o destaque continua claro, mas mantém textura e cor.
+ */
+export const LIGHT_SURFACE_CAP = 3.2;
+export function capIntensity(i: number, p: { x: number; y: number; z: number }, w: World): number {
+  let dmin = Infinity;
+  for (const b of w.boxes) {
+    if (b.kind === "ceiling" || b.noRender) continue;
+    const dx = Math.max(b.min.x - p.x, 0, p.x - b.max.x), dy = Math.max(b.min.y - p.y, 0, p.y - b.max.y), dz = Math.max(b.min.z - p.z, 0, p.z - b.max.z);
+    if (dy === 0 && b.min.y > p.y) continue;
+    const d = Math.hypot(dx, dy, dz);
+    // só superfícies abaixo ou ao lado (o teto logo acima recebe luz rasante)
+    if (b.min.y >= p.y) continue;
+    if (d < dmin) dmin = d;
+  }
+  if (!isFinite(dmin)) return i;
+  return Math.min(i, LIGHT_SURFACE_CAP * Math.max(0.6, dmin) ** 1.6);
 }
 
 /** Geometria de caixa com UV em coordenadas de mundo (texturas contínuas entre peças). */
@@ -169,7 +192,7 @@ export class Renderer {
   dynRoot = new THREE.Group();
   mats = makeMaterials();
   dynamicBoxes = new Map<string, { mesh: THREE.Mesh; box: Box; open: number; vib: number; base: THREE.Vector3 }>();
-  lights: { light: THREE.PointLight; base: number; flicker: number; id?: string; target: number; fixture?: THREE.Mesh }[] = [];
+  lights: { light: THREE.PointLight; base: number; cap?: number; flicker: number; id?: string; target: number; fixture?: THREE.Mesh }[] = [];
   creatures = new Map<string, CreatureView>();
   pickups = new Map<string, THREE.Group>();
   sparks = new ParticlePool(900, true);
@@ -228,7 +251,7 @@ export class Renderer {
   constructor(public canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.05, 400);
     this.camera.rotation.order = "YXZ";
@@ -295,7 +318,7 @@ export class Renderer {
       if (!this.composer) {
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(new RenderPass(this.scene, this.camera));
-        this.bloom = new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.55, 0.5, 0.82);
+        this.bloom = new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.38, 0.45, 1.0);
         this.composer.addPass(this.bloom);
         this.composer.addPass(new OutputPass());
       }
@@ -364,14 +387,15 @@ export class Renderer {
       pl.position.set(l.pos.x, l.pos.y, l.pos.z);
       // luminárias sem id dividem material por cor (e depois são mescladas); as com id mudam de cor em jogo
       const fkey = `${l.color}|${l.intensity > 0}`;
-      const fmat = l.id ? new THREE.MeshBasicMaterial({ color: new THREE.Color(l.color).multiplyScalar(l.intensity > 0 ? 1.5 : 0.1), toneMapped: false })
-        : (fixtureMats.get(fkey) ?? fixtureMats.set(fkey, new THREE.MeshBasicMaterial({ color: new THREE.Color(l.color).multiplyScalar(l.intensity > 0 ? 1.5 : 0.1), toneMapped: false })).get(fkey)!);
+      const fmat = l.id ? new THREE.MeshBasicMaterial({ color: new THREE.Color(l.color).multiplyScalar(l.intensity > 0 ? FIXTURE_GLOW : 0.1), toneMapped: false })
+        : (fixtureMats.get(fkey) ?? fixtureMats.set(fkey, new THREE.MeshBasicMaterial({ color: new THREE.Color(l.color).multiplyScalar(l.intensity > 0 ? FIXTURE_GLOW : 0.1), toneMapped: false })).get(fkey)!);
       const fixture = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.16), fmat);
       if (l.id) fixture.userData.keep = true;
       fixture.position.set(l.pos.x, l.pos.y + 0.12, l.pos.z);
       this.levelRoot.add(pl, fixture);
       this.lightPool.add(pl);
-      this.lights.push({ light: pl, base: l.intensity * 2.2, flicker: l.flicker ?? 0, id: l.id, target: l.intensity > 0 ? 1 : 0, fixture });
+      const cap = capIntensity(1e9, l.pos, w);
+      this.lights.push({ light: pl, base: Math.min(cap, l.intensity * 2.2), cap, flicker: l.flicker ?? 0, id: l.id, target: l.intensity > 0 ? 1 : 0, fixture });
     }
     // céu, mar e chuva
     if (env.sky) {
@@ -714,7 +738,7 @@ export class Renderer {
         }
         case "latchOpen": { const d = this.decorById.get("trinco"); if (d) (d.userData.led.material as THREE.MeshBasicMaterial).color.set(0x40ff70); break; }
         case "bell": { const d = this.decorById.get("sino"); if (d) d.userData.swing = 1; break; }
-        case "lightOn": { const l = this.lights.find((x) => x.id === e.id); if (l) { l.target = 1; l.base = 20; (l.fixture!.material as THREE.MeshBasicMaterial).color.set(0xe8f4ff).multiplyScalar(1.5); } break; }
+        case "lightOn": { const l = this.lights.find((x) => x.id === e.id); if (l) { l.target = 1; l.base = Math.min(20, l.cap ?? 20); (l.fixture!.material as THREE.MeshBasicMaterial).color.set(0xe8f4ff).multiplyScalar(FIXTURE_GLOW); } break; }
         case "panel": {
           const p = this.decorById.get("painel");
           if (p) { (p.userData.screen.material as THREE.MeshBasicMaterial).map = TX.texSign("LIBERADO →", "#60ff90", 512, 256); (p.userData.screen.material as THREE.MeshBasicMaterial).needsUpdate = true; p.userData.lever.rotation.x = 0.9; (p.userData.marker.material as THREE.MeshBasicMaterial).color.set(0xffffff); }
