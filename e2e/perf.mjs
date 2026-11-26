@@ -73,7 +73,7 @@ async function measure(scene, frames = 40) {
   });
   await page.evaluate(() => { document.getElementById("diag").style.visibility = "hidden"; });
   await sleep(300);
-  await page.screenshot({ path: `${SH}${label}-${scene}.jpg`, type: "jpeg", quality: 90, timeout: 180000 });
+  try { await page.screenshot({ path: `${SH}${label}-${scene}.jpg`, type: "jpeg", quality: 90, timeout: 90000 }); } catch (e) { console.log(scene, "sem foto:", String(e).split("\n")[0], "erros:", errors.slice(-3).join(" | ")); }
   await page.evaluate(() => { document.getElementById("diag").style.visibility = ""; });
   console.log(scene, JSON.stringify(r));
   return r;
@@ -123,6 +123,21 @@ if (process.env.F2 !== "0") {
   out.scenes.f2Nevoa = await measure("f2-nevoa");
   await place({ x: 80, y: 0, z: 2 }, { x: 100, y: 2, z: 2 });
   out.scenes.f2Boia = await measure("f2-boia");
+}
+
+// F3 • Casa das Bombas (cenas novas da v0.5)
+if (process.env.F3 !== "0") {
+  await page.evaluate(() => { window.__fh.setSpeed(1); window.__fh.start("F3"); });
+  await waitFor(page, () => window.__fh.sim?.level.id === "F3" && (window.__fh.state === "playing" || window.__fh.state === "paused"), null, 60000, "F3");
+  await page.evaluate(() => { const g = window.__fh.game; g.state = "playing"; g.show(null); g.sim.damageMul = 0; });
+  out.f3LoadMs = Math.round(await page.evaluate(() => window.__fhLastLoadMs));
+  await page.evaluate(() => window.__fh.setSpeed(0));
+  await place({ x: 4, y: 0, z: -2 }, { x: 20, y: 1.2, z: -2 });
+  out.scenes.f3Filtros = await measure("f3-filtros");
+  await place({ x: 56, y: 0, z: -2 }, { x: 76, y: 1.5, z: -2 });
+  out.scenes.f3Galeria = await measure("f3-galeria");
+  await place({ x: 88, y: 0, z: 0 }, { x: 100, y: 3, z: 0 });
+  out.scenes.f3Arena = await measure("f3-arena");
 }
 
 // pacote

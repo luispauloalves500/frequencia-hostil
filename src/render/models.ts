@@ -5,7 +5,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 /** Caixa com cantos arredondados (bisel): tira o aspecto de blocos das armas em primeira pessoa. */
 function rbox(w: number, h: number, d: number, r = 0.014): THREE.BufferGeometry {
   const rr = Math.min(r, Math.min(w, h, d) * 0.42);
-  return rr < 0.0015 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 3, rr);
+  return rr < 0.0015 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, rr >= 0.02 ? 3 : 2, rr);
 }
 import { remapUV, signAtlas, texFish, texGlow, texSign, texVeins } from "./textures";
 
@@ -18,22 +18,26 @@ export const rimMat = (color = 0x6ff0ff) => new THREE.MeshBasicMaterial({ color,
  * com bem menos chamadas de desenho para as armas detalhadas.
  */
 function mergeByMaterial(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
+  // desce nos subgrupos (ferrolho, mão, cápsula): as peças de cada um se juntam entre si
+  for (const o of [...root.children]) if ((o as THREE.Group).isGroup && o.children.length > 1) mergeByMaterial(o, keep);
   const groups = new Map<THREE.Material, THREE.Mesh[]>();
   for (const o of root.children) {
     const m = o as THREE.Mesh;
-    if (!m.isMesh || keep.has(m) || Array.isArray(m.material)) continue;
+    if (!m.isMesh || keep.has(m) || Array.isArray(m.material) || m.children.length) continue;
     const a = m.geometry.attributes;
-    if (!a.position || !a.normal || !a.uv || Object.keys(a).length !== 3 || !m.geometry.index) continue;
+    if (!a.position || !a.normal || !a.uv || Object.keys(a).length !== 3) continue;
     const arr = groups.get(m.material as THREE.Material) ?? []; arr.push(m); groups.set(m.material as THREE.Material, arr);
   }
   for (const [mat, meshes] of groups) {
     if (meshes.length < 2) continue;
-    const geos = meshes.map((m) => { m.updateMatrix(); return m.geometry.clone().applyMatrix4(m.matrix); });
+    const mixed = meshes.some((m) => !m.geometry.index);
+    const geos = meshes.map((m) => { m.updateMatrix(); const g = m.geometry.clone().applyMatrix4(m.matrix); return mixed && g.index ? g.toNonIndexed() : g; });
     const merged = mergeGeometries(geos, false);
     geos.forEach((g) => g.dispose());
     if (!merged) continue;
     for (const m of meshes) { m.removeFromParent(); m.geometry.dispose(); }
-    root.add(new THREE.Mesh(merged, mat));
+    const one = new THREE.Mesh(merged, mat); one.castShadow = meshes[0].castShadow; one.receiveShadow = meshes[0].receiveShadow;
+    root.add(one);
   }
 }
 
@@ -184,6 +188,7 @@ export function buildFerry(): THREE.Group {
   const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6), white); mast.position.set(-6, 9.5, 0); g.add(mast);
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0xff3030 })); lamp.position.set(-6, 12.6, 0); g.add(lamp);
   g.userData.lamp = lamp;
+  mergeByMaterial(g, new Set<THREE.Object3D>([lamp]));
   return g;
 }
 
