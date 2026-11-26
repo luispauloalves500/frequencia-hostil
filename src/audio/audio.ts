@@ -109,21 +109,34 @@ export class AudioEngine {
     for (const [r, g, d] of [[0.5, 0.6, 3], [1, 1, 2.5], [1.19, 0.6, 2], [1.56, 0.4, 1.6], [2.0, 0.4, 1.2], [2.74, 0.25, 0.8]]) this.tone(dest, t0, d, "sine", base * r, base * r, gain * g, 0.002);
   }
 
+  /** Acerto em carne/quitina: baque seco e úmido (sem tilintar de vidro). */
+  private fleshHit(pos: any, t: number, gain: number) { const o = this.out(pos, gain); this.noise(o, t, 0.07, "bandpass", 1100, 1.4, 0.5); this.tone(o, t, 0.07, "sine", 220, 90, 0.35); }
+  /** Morte orgânica: baque grave e um chiado que se esvai. */
+  private organicKill(pos: any, t: number) { const k = this.out(pos, 0.9); this.tone(k, t + 0.03, 0.35, "sine", 140, 45, 0.6); this.noise(k, t + 0.03, 0.6, "lowpass", 700, 1, 0.7, 0.01, 200); this.noise(k, t + 0.2, 0.8, "bandpass", 2400, 0.8, 0.15, 0.1); }
+
   play(e: SimEvent) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.events.push(e.type);
     if (this.events.length > 200) this.events.shift();
     switch (e.type) {
-      case "shot": if (e.weapon === "fole") {
+      case "shot": if (e.weapon === "tear") {
+        // Tear: fio esticado que estala (corda), sem estampido
+        const o = this.out(undefined, 0.55);
+        this.tone(o, t, 0.16, "triangle", 620, 1240, 0.35);
+        this.tone(o, t, 0.25, "sine", 310, 300, 0.25);
+        this.noise(o, t, 0.08, "bandpass", 3200, 3, 0.35);
+        for (const h of (e.hits ?? []) as { killed: boolean; at: any }[]) { this.fleshHit(h.at, t + 0.03, 0.55); if (h.killed) this.organicKill(h.at, t); }
+        break;
+      } else if (e.weapon === "fole") {
         // Fole: estouro grave de ar comprimido + chiado dos fragmentos
         const o = this.out(undefined, 0.7);
         this.noise(o, t, 0.25, "lowpass", 900, 0.8, 0.9, 0.003, 300);
         this.tone(o, t, 0.18, "sine", 110, 40, 0.7);
         this.noise(o, t + 0.01, 0.12, "bandpass", 2600, 1.5, 0.35);
         this.noise(o, t + 0.28, 0.18, "bandpass", 700, 2, 0.25, 0.03); // fole enchendo de novo
-        for (const h of (e.hits ?? []) as { killed: boolean }[]) this.ceramic(this.out(e.to, 0.6), t + 0.03, h.killed ? 1900 : 2500, 0.3, 0.2);
-        if (e.killed) { const k = this.out(e.to, 0.9); this.noise(k, t + 0.03, 0.5, "bandpass", 4200, 1.2, 0.8); for (let i = 0; i < 5; i++) this.ceramic(k, t + 0.04 + i * 0.035, 1800 + Math.random() * 2400, 0.25, 0.25); }
+        for (const _h of (e.hits ?? []) as { killed: boolean }[]) this.fleshHit(e.to, t + 0.03, 0.6);
+        if (e.killed) this.organicKill(e.to, t);
         break;
       } else {
         const o = this.out(undefined, 0.5);
@@ -131,8 +144,8 @@ export class AudioEngine {
         this.tone(o, t, 0.05, "square", 4800, 2200, 0.12);
         this.noise(o, t, 0.06, "highpass", 3000, 0.7, 0.4);
         this.tone(o, t, 0.12, "sine", 160, 60, 0.5);
-        if (e.hit) this.ceramic(this.out(e.to, 0.6), t + 0.02, e.marked ? 1900 : 2600, e.marked ? 0.5 : 0.35, e.marked ? 0.5 : 0.18);
-        if (e.killed) { const k = this.out(e.to, 0.9); this.noise(k, t + 0.03, 0.5, "bandpass", 4200, 1.2, 0.8); for (let i = 0; i < 5; i++) this.ceramic(k, t + 0.04 + i * 0.035, 1800 + Math.random() * 2400, 0.25, 0.25); }
+        if (e.hit) { this.fleshHit(e.to, t + 0.02, 0.6); if (e.marked) this.tone(this.out(e.to, 0.5), t + 0.02, 0.2, "triangle", 1900, 1500, 0.2); }
+        if (e.killed) this.organicKill(e.to, t);
         break;
       }
       case "mark": {
@@ -244,6 +257,26 @@ export class AudioEngine {
       case "gateStart": { const o = this.out(undefined, 0.5); this.tone(o, t, 0.25, "square", 440, 440, 0.12); this.noise(o, t, 2.5, "lowpass", 180, 1, 0.5, 0.4, 260); break; }
       case "gateSegment": { const o = this.out(undefined, 0.5, 2, false); const f = 523 + (e.n - 1) * 131; this.tone(o, t, 0.18, "triangle", f, f, 0.25); this.noise(o, t, 0.4, "lowpass", 220, 1, 0.4); break; }
       case "gateOpen": { const o = this.out(undefined, 0.7); this.tone(o, t, 0.5, "triangle", 784, 784, 0.2); this.tone(o, t + 0.15, 0.6, "triangle", 1046, 1046, 0.2); this.noise(o, t, 1.6, "lowpass", 300, 1, 0.8, 0.05, 900); break; }
+      case "tearLine": { const o = this.out(undefined, 0.5); this.tone(o, t, 0.4, "triangle", 440, 880, 0.25, 0.02); this.tone(o, t + 0.05, 0.6, "sine", 880, 870, 0.15, 0.05); break; }
+      case "tearLineHit": { const o = this.out(e.pos, 0.9, 3); this.noise(o, t, 0.2, "bandpass", 1600, 2, 0.7); this.tone(o, t, 0.3, "triangle", 900, 300, 0.3); break; }
+      case "tearInvalid": { const o = this.out(undefined, 0.4, 2, false); this.tone(o, t, 0.12, "square", 300, 220, 0.15); break; }
+      case "carStomp": { const o = this.out(e.pos, 1.3, 5); for (let i = 0; i < 3; i++) { this.tone(o, t + i * 0.3, 0.25, "sine", 70, 40, 0.7); this.noise(o, t + i * 0.3, 0.2, "lowpass", 300, 1, 0.6); } break; }
+      case "carCharge": { const o = this.out(e.pos, 1.2, 5); this.tone(o, t, 0.6, "sawtooth", 90, 160, 0.35, 0.05); this.noise(o, t, 0.8, "lowpass", 500, 1, 0.5, 0.05, 900); break; }
+      case "carSlam": { const o = this.out(e.pos, 1.5, 6); this.tone(o, t, 0.5, "sine", 80, 30, 0.9); this.noise(o, t, 0.5, "lowpass", 1200, 1, 0.9); if (e.batente) this.tone(o, t, 0.6, "square", 220, 180, 0.15); break; }
+      case "carOpen": { const o = this.out(e.pos, 1.0, 4); this.noise(o, t, 0.5, "bandpass", 600, 2, 0.6, 0.05); this.tone(o, t, 0.5, "sawtooth", 160, 90, 0.2); break; }
+      case "badaloTilt": { const o = this.out(e.pos, 1.0, 8); this.bell(o, t, 98, 0.5); this.noise(o, t, 1.0, "lowpass", 300, 1, 0.4, 0.3); break; }
+      case "badaloLock": { const o = this.out(e.pos, 0.9, 8); this.tone(o, t, 0.3, "square", 330, 330, 0.12); this.tone(o, t + 0.15, 0.3, "square", 330, 330, 0.12); break; }
+      case "badaloSlam": case "badaloStuck": { const o = this.out(e.pos, 1.6, 10); this.bell(o, t, 73, 0.9); this.tone(o, t, 0.9, "sine", 55, 30, 1.0); this.noise(o, t, 0.8, "lowpass", 900, 1, 1.0); break; }
+      case "badaloRise": { const o = this.out(undefined, 0.6); this.noise(o, t, 1.4, "lowpass", 400, 1, 0.4, 0.2, 200); this.tone(o, t, 1.4, "sine", 60, 90, 0.25, 0.3); break; }
+      case "badaloWaveWarn": { const o = this.out(e.pos, 1.0, 8); this.tone(o, t, 1.1, "sawtooth", 50, 140, 0.3, 0.6); break; }
+      case "badaloWave": { const o = this.out(e.pos, 1.4, 10); this.bell(o, t, 110, 0.8); this.noise(o, t, 1.0, "lowpass", 700, 1, 0.8, 0.01, 200); break; }
+      case "badaloHalf": { const o = this.out(undefined, 0.8); this.noise(o, t, 0.9, "bandpass", 700, 1, 0.7); this.tone(o, t, 1.2, "sawtooth", 140, 60, 0.3); break; }
+      case "bossStart": this.intensity = 2; break;
+      case "bossDead": { this.intensity = 0; const o = this.out(undefined, 0.8); this.bell(o, t, 65, 1); this.bell(o, t + 0.8, 49, 0.8); this.noise(o, t, 2.5, "lowpass", 400, 1, 0.8, 0.1, 150); break; }
+      case "pump": { const o = this.out(e.pos, 1.2, 6); for (let i = 0; i < 4; i++) this.noise(o, t + i * 0.2, 0.15, "bandpass", 450 + i * 50, 4, 0.6); this.tone(o, t + 0.8, 1.6, "sawtooth", 40, 60, 0.25, 0.4); break; }
+      case "jet": { const o = this.out(undefined, 0.6); this.noise(o, t, 1.6, "highpass", 1500, 0.7, 0.6, 0.05, 600); break; }
+      case "dispense": { const o = this.out(undefined, 0.5); this.noise(o, t, 0.12, "bandpass", 1500, 3, 0.6); this.tone(o, t + 0.1, 0.08, "square", 1200, 1200, 0.15); this.noise(o, t + 0.2, 0.15, "bandpass", 1100, 3, 0.5); break; }
+      case "doorClose": { const o = this.out(undefined, 0.8); this.noise(o, t, 0.8, "lowpass", 400, 1, 0.7, 0.02, 1500); this.tone(o, t + 0.7, 0.4, "square", 70, 50, 0.3); break; }
       case "denied": { const o = this.out(undefined, 0.4, 2, false); this.tone(o, t, 0.15, "square", 220, 200, 0.12); this.tone(o, t + 0.16, 0.15, "square", 180, 170, 0.12); break; }
     }
   }

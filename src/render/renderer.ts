@@ -10,11 +10,11 @@ import type { Creature } from "../core/creatures";
 import type { Box } from "../core/world";
 import { World } from "../core/world";
 import type { LevelDef } from "../levels/types";
-import { BEACON, ESTILHACO, FOLE, RISCADOR, VEU } from "../config";
+import { BADALO, BEACON, CARAPACA, ESTILHACO, FOLE, RISCADOR, VEU, WEAPONS } from "../config";
 import { dirFromYawPitch } from "../core/math";
 import * as TX from "./textures";
 import { LightPool } from "./lightPool";
-import { buildAgulha, buildBeaconDevice, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildVeu, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
+import { buildAgulha, buildBadalo, buildBeaconDevice, buildCarapaca, buildEstilhaco, buildFerry, buildFoleModel, buildPickup, buildRiscador, buildTearModel, buildVeu, fishDoor, rimMat, signMesh, type CreatureRig, type WeaponView } from "./models";
 import { buildExtraDecor } from "./decor";
 
 export type Quality = "baixa" | "media" | "alta";
@@ -45,6 +45,7 @@ function makeMaterials(): Record<string, MatDef> {
     toldo: { mat: std(TX.texAwning(), { roughness: 0.9 }), size: 2 },
     bancaAzul: { mat: std(TX.texBluePaint(), { roughness: 0.6 }), size: 2 },
     comporta: { mat: std(TX.texGate(), { metalness: 0.55, roughness: 0.55 }), size: 3 },
+    batente: { mat: std(TX.texHazard(), { roughness: 0.7, metalness: 0.1 }), size: 1.2 },
   };
 }
 
@@ -174,6 +175,8 @@ class ParticlePool {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** Altura do trilho circular do teto (F3): o talo do Badalo sai daqui. */
+const BADALO_RAIL_Y = 8.6;
 const FOLE_MAG = 8;
 const WHITE = new THREE.Color(0xffffff);
 
@@ -217,7 +220,15 @@ export class Renderer {
   private liveClouds = new Set<number>();
   vmAgulha = buildAgulha();
   vmFole = buildFoleModel();
+  vmTear = buildTearModel();
   vm: WeaponView = this.vmAgulha;
+  /** linhas do Tear no piso (fio esticado) e prévia da linha */
+  private tearViews = new Map<number, THREE.Mesh>();
+  private tearPreview!: THREE.Mesh;
+  /** alvo travado do Badalo (anel no piso) e onda de choque */
+  private badaloTarget!: THREE.Mesh;
+  private waveRing!: THREE.Mesh;
+  private jetT = 0;
   /** sopro: o leque recua e o fole comprime */
   soproAnim = 0;
   private vmWeapon: string | null = null;
@@ -276,10 +287,20 @@ export class Renderer {
     }
     // viewmodel
     this.vmScene.add(this.vmCamera);
-    this.vmCamera.add(this.vmAgulha.root, this.vmFole.root);
+    this.vmCamera.add(this.vmAgulha.root, this.vmFole.root, this.vmTear.root);
+    this.vmTear.root.position.set(0.17, -0.18, -0.36); this.vmTear.root.scale.setScalar(0.9); this.vmTear.root.visible = false;
     this.vmAgulha.root.position.set(0.17, -0.17, -0.34);
     this.vmFole.root.position.set(0.17, -0.19, -0.34); this.vmFole.root.scale.setScalar(0.78); this.vmFole.root.visible = false;
-    for (const v of [this.vmAgulha, this.vmFole]) { v.mag.userData.p0 = v.mag.position.clone(); if (v.hand) v.hand.userData.p0 = v.hand.position.clone(); }
+    {
+      const tm = new THREE.MeshBasicMaterial({ color: 0xc89bff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+      this.tearPreview = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.08), tm.clone()); this.tearPreview.rotation.x = -Math.PI / 2; this.tearPreview.visible = false;
+      const rg = new THREE.RingGeometry(0.92, 1, 48); rg.rotateX(-Math.PI / 2);
+      this.badaloTarget = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ color: 0xff6040, transparent: true, opacity: 0.7, depthWrite: false, toneMapped: false })); this.badaloTarget.visible = false;
+      const wg = new THREE.RingGeometry(0.9, 1, 64); wg.rotateX(-Math.PI / 2);
+      this.waveRing = new THREE.Mesh(wg, new THREE.MeshBasicMaterial({ color: 0xffb080, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); this.waveRing.visible = false;
+      this.scene.add(this.tearPreview, this.badaloTarget, this.waveRing);
+    }
+    for (const v of [this.vmAgulha, this.vmFole, this.vmTear]) { v.mag.userData.p0 = v.mag.position.clone(); if (v.hand) v.hand.userData.p0 = v.hand.position.clone(); }
     this.vmCamera.add(this.vmBeacon.root);
     // baliza menor na mão esquerda: não cobre a mira nem a metade esquerda da tela
     this.vmBeacon.root.position.set(-0.25, -0.22, -0.42);
@@ -331,6 +352,8 @@ export class Renderer {
     const disposeTree = (o: THREE.Object3D) => o.traverse((c) => { const m = c as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
     disposeTree(this.levelRoot); disposeTree(this.dynRoot);
     this.levelRoot.clear(); this.dynRoot.clear();
+    for (const m of this.tearViews.values()) m.removeFromParent(); this.tearViews.clear();
+    this.badaloTarget.visible = false; this.waveRing.visible = false; this.tearPreview.visible = false; this.jetT = 0;
     this.dynamicBoxes.clear(); this.lights = []; this.lightPool.clear(); this.creatures.clear(); this.pickups.clear(); this.decorById.clear();
     for (const s of this.projectiles.values()) s.removeFromParent(); this.projectiles.clear();
     for (const t of this.tracers) { t.line.removeFromParent(); this.tracerFree.push(t.line); } this.tracers = [];
@@ -351,6 +374,7 @@ export class Renderer {
     // caixas estáticas mescladas por material
     const groups = new Map<string, THREE.BufferGeometry[]>();
     for (const b of w.boxes) {
+      if (b.noRender) continue; // só colisão: o visual vem da decoração
       const md = this.mats[b.mat] ?? this.mats.concreto;
       const dynamic = !b.id.startsWith("b");
       const geo = worldBoxGeo(b, md.size);
@@ -520,6 +544,8 @@ export class Renderer {
     const tmp = new THREE.Group();
     const r = buildRiscador(), e = buildEstilhaco(), vu = buildVeu();
     tmp.add(r.root, e.root, vu.root);
+    if (this.level?.id === "F3") { const ca = buildCarapaca(), ba = buildBadalo(); tmp.add(ca.root, ba.root); for (const m of [...ca.rims, ...ba.rims]) m.visible = true; }
+    for (const o of [this.tearPreview, this.badaloTarget, this.waveRing]) if (!o.visible) { o.visible = true; tmp.userData.hideAfter = [...(tmp.userData.hideAfter ?? []), o]; }
     tmp.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.texSmoke(), transparent: true, opacity: 0.5, depthWrite: false })));
     if (e.beam) { e.beam.visible = true; tmp.add(e.beam); }
     for (const m of [...r.rims, ...e.rims]) m.visible = true;
@@ -527,19 +553,20 @@ export class Renderer {
     tmp.add(new THREE.Mesh(this.tracerGeo, new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
     tmp.add(new THREE.Mesh(new THREE.CircleGeometry(0.5, 8), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false })));
     tmp.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.texGlow(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
-    tmp.add(buildPickup("dardos"), buildPickup("curativo"), buildPickup("fole"));
+    tmp.add(buildPickup("dardos"), buildPickup("curativo"), buildPickup("fole"), buildPickup("tear"));
     const vis: THREE.Object3D[] = [];
     for (const id of ["seta-comporta"]) { const a = this.decorById.get(id); if (a && !a.visible) { a.visible = true; vis.push(a); } }
     for (const o of [this.beaconWorld.root, this.rangeRing, this.aimRing, ...this.pulseRings]) if (!o.visible) { o.visible = true; vis.push(o); }
     this.scene.add(tmp);
     try {
       this.renderer.compile(this.scene, this.camera);
-      const vv = [this.vmAgulha.root, this.vmFole.root, this.vmBeacon.root, this.vmAgulha.flash, this.vmFole.flash].filter((o) => !o.visible);
+      const vv = [this.vmAgulha.root, this.vmFole.root, this.vmTear.root, this.vmBeacon.root, this.vmAgulha.flash, this.vmFole.flash, this.vmTear.flash].filter((o) => !o.visible);
       vv.forEach((o) => (o.visible = true));
       this.renderer.compile(this.vmScene, this.vmCamera);
       vv.forEach((o) => (o.visible = false));
     } catch { /* sem contexto (testes) */ }
     for (const o of vis) o.visible = false;
+    for (const o of (tmp.userData.hideAfter ?? []) as THREE.Object3D[]) o.visible = false;
     this.scene.remove(tmp);
     tmp.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry && m.geometry !== this.tracerGeo) m.geometry.dispose(); });
   }
@@ -685,7 +712,7 @@ export class Renderer {
   onEvents(evs: SimEvent[], sim: Sim) {
     for (const e of evs) {
       switch (e.type) {
-        case "shot": if (e.weapon === "fole") { this.foleShot(e); break; } // fallthrough para a Agulha
+        case "shot": if (e.weapon === "fole") { this.foleShot(e); break; } if (e.weapon === "tear") { this.tearShot(e); break; } // fallthrough para a Agulha
         // eslint-disable-next-line no-fallthrough
         case "mark": {
           const from = this.vm.muzzle.getWorldPosition(new THREE.Vector3());
@@ -738,7 +765,7 @@ export class Renderer {
         }
         case "latchOpen": { const d = this.decorById.get("trinco"); if (d) (d.userData.led.material as THREE.MeshBasicMaterial).color.set(0x40ff70); break; }
         case "bell": { const d = this.decorById.get("sino"); if (d) d.userData.swing = 1; break; }
-        case "lightOn": { const l = this.lights.find((x) => x.id === e.id); if (l) { l.target = 1; l.base = Math.min(20, l.cap ?? 20); (l.fixture!.material as THREE.MeshBasicMaterial).color.set(0xe8f4ff).multiplyScalar(FIXTURE_GLOW); } break; }
+        case "lightOn": { this.lampOn(e.id); const l = this.lights.find((x) => x.id === e.id); if (l) { l.target = 1; l.base = Math.min(20, l.cap ?? 20); (l.fixture!.material as THREE.MeshBasicMaterial).color.set(0xe8f4ff).multiplyScalar(FIXTURE_GLOW); } break; }
         case "panel": {
           const p = this.decorById.get("painel");
           if (p) { (p.userData.screen.material as THREE.MeshBasicMaterial).map = TX.texSign("LIBERADO →", "#60ff90", 512, 256); (p.userData.screen.material as THREE.MeshBasicMaterial).needsUpdate = true; p.userData.lever.rotation.x = 0.9; (p.userData.marker.material as THREE.MeshBasicMaterial).color.set(0xffffff); }
@@ -751,9 +778,12 @@ export class Renderer {
           if (p) { (p.userData.screen.material as THREE.MeshBasicMaterial).map = TX.texSign("PRESSIONE", "#ffffff", 512, 256); (p.userData.screen.material as THREE.MeshBasicMaterial).needsUpdate = true; p.userData.ready = true; }
           break;
         }
-        case "equip": if (e.what === "fole") { const b = this.decorById.get("bancada-fole"); if (b) { for (const it of b.userData.items) it.visible = false; b.userData.glow.intensity = 0.3; } break; } else { const l = this.decorById.get("armario-lia"); if (l) { for (const it of l.userData.items) it.visible = false; l.userData.glow.intensity = 0.5; } break; }
+        case "equip": if (e.what === "tear") { this.hideBench("bancada-tear"); break; } if (e.what === "fole") { const b = this.decorById.get("bancada-fole"); if (b) { for (const it of b.userData.items) it.visible = false; b.userData.glow.intensity = 0.3; } break; } else { const l = this.decorById.get("armario-lia"); if (l) { for (const it of l.userData.items) it.visible = false; l.userData.glow.intensity = 0.5; } break; }
         case "levelStart": { // estado restaurado de um registro (ex.: F2-B com o registro da praça já aberto)
           for (const id of ["registro1", "registro2"]) { const d = this.decorById.get(id); if (d && sim.flags[id]) { (d.userData.led.material as THREE.MeshBasicMaterial).color.set(0x40ff70); d.userData.wheel.rotation.z = 2.4; } }
+          if (sim.flags.tear) this.hideBench("bancada-tear");
+          for (const id of ["bomba1", "bomba2"]) if (sim.flags[id]) { const d = this.decorById.get(id); if (d?.userData.lamp) (d.userData.lamp.material as THREE.MeshBasicMaterial).color.set(0x40ff70); const l = this.lights.find((x) => x.id === `luz-${id}`); if (l) l.light.color.set(0x8fffb0); }
+          if (sim.flags.bomba2) for (const id of ["lampada-1", "lampada-2"]) this.lampOn(id);
           if (sim.flags.fole) { const b = this.decorById.get("bancada-fole"); if (b) { for (const it of b.userData.items) it.visible = false; b.userData.glow.intensity = 0.3; } }
           break;
         }
@@ -789,6 +819,50 @@ export class Renderer {
           break;
         }
         case "pickup": { const g = this.pickups.get(e.id); if (g) { this.sparks.emit(g.position.clone().add(new THREE.Vector3(0, 0.3, 0)), 14, e.kind === "dardos" ? 0x7ff6ff : e.kind === "fole" ? 0xffc070 : 0xffb050, 2, 0.5, 0.1, -1); } break; }
+        case "tearLine": {
+          const a = new THREE.Vector3(e.a.x, e.y + 0.03, e.a.z), b = new THREE.Vector3(e.b.x, e.y + 0.03, e.b.z);
+          const len = a.distanceTo(b);
+          const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.03, 0.05), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xc89bff).multiplyScalar(1.4), toneMapped: false, transparent: true }));
+          m.position.copy(a).add(b).multiplyScalar(0.5);
+          m.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+          // estacas nas pontas
+          for (const sx of [-0.5, 0.5]) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.02, 0.18, 6), m.material); st.position.set(sx * len, 0.06, 0); m.add(st); }
+          this.scene.add(m); this.tearViews.set(e.id, m);
+          for (const pt of [a, b]) this.sparks.emit(pt, 8, 0xc89bff, 1.5, 0.35, 0.08, 4);
+          break;
+        }
+        case "tearLineHit": { this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y + 0.2, e.pos.z), 16, 0xd8b8ff, 3, 0.4, 0.09, 4); this.hitFlashes.push({ c: e.cid, t: 0.1 }); break; }
+        case "tearLineEnd": { const m = this.tearViews.get(e.id); if (m) { m.userData.fade = 0.4; } break; }
+        case "carStomp": { this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y + 0.05, e.pos.z), 14, 0x9a8a70, 2.2, 0.6, 0.12, 5); this.nearShake(e.pos, 0.25); break; }
+        case "carCharge": { this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y + 0.05, e.pos.z), 10, 0x9a8a70, 3, 0.5, 0.12, 5); break; }
+        case "carSlam": { this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y + 0.7, e.pos.z), 26, e.batente ? 0xffd040 : 0xffc080, 4, 0.5, 0.1, 6); this.shards.emit(this.tmpA, 12, 0x6a6458, 3, 0.8, 0.06, 9); this.nearShake(e.pos, 0.6); break; }
+        case "carOpen": { this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y, e.pos.z), 12, 0xffa060, 1.5, 0.6, 0.1, 1); break; }
+        case "badaloLock": { this.badaloTarget.visible = true; this.badaloTarget.position.set(e.pos.x, e.pos.y + 0.05, e.pos.z); this.badaloTarget.scale.setScalar(BADALO.impactRadius); (this.badaloTarget.material as THREE.MeshBasicMaterial).color.set(e.src === "baliza" ? 0x7ff6ff : 0xff6040); break; }
+        case "badaloSlam": case "badaloStuck": {
+          this.badaloTarget.visible = false;
+          const p = this.tmpA.set(e.pos.x, e.pos.y + 0.1, e.pos.z);
+          for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; this.tmpB.set(Math.cos(a), 0.15, Math.sin(a)); this.sparks.emit(this.tmpV.set(p.x + Math.cos(a) * 1.6, p.y, p.z + Math.sin(a) * 1.6), 2, 0xa89880, 4, 0.6, 0.16, 4, this.tmpB); }
+          this.shards.emit(p, 20, 0x5a5448, 4, 0.9, 0.07, 9);
+          this.nearShake(e.pos, 1.0);
+          if (e.type === "badaloStuck") { const d = this.decorById.get(`placa-${e.plate}`); if (d?.userData.lamp) (d.userData.lamp.material as THREE.MeshBasicMaterial).color.set(0xffd040); }
+          break;
+        }
+        case "badaloRise": { for (let i = 0; i < 3; i++) { const d = this.decorById.get(`placa-${i}`); if (d?.userData.lamp) (d.userData.lamp.material as THREE.MeshBasicMaterial).color.set(0x401010); } break; }
+        case "badaloWave": { this.nearShake(e.pos, 0.5); break; }
+        case "badaloHalf": { this.shards.emit(this.tmpA.set(e.pos?.x ?? 100, 2, e.pos?.z ?? 0), 30, 0x5a5448, 4, 1, 0.08, 9); this.shake = Math.max(this.shake, 0.4); break; }
+        case "bossStart": { this.shake = Math.max(this.shake, 0.3); break; }
+        case "bossDead": { this.shake = Math.max(this.shake, 0.8); this.badaloTarget.visible = false; this.waveRing.visible = false; break; }
+        case "pump": {
+          const d = this.decorById.get(e.id);
+          if (d) { d.userData.turning = 1.4; if (d.userData.lamp) (d.userData.lamp.material as THREE.MeshBasicMaterial).color.set(0x40ff70); }
+          const l = this.lights.find((x) => x.id === `luz-${e.id}`); if (l) l.light.color.set(0x8fffb0);
+          this.sparks.emit(this.tmpA.set(e.pos.x, e.pos.y, e.pos.z), 12, 0xd0e8ff, 1.5, 0.5, 0.08, 4);
+          this.shake = Math.max(this.shake, 0.2);
+          break;
+        }
+        case "jet": { this.jetT = 1.6; break; }
+        case "dispense": { const d = this.decorById.get(e.id); if (d) { d.userData.blink = 0.6; this.sparks.emit(d.getWorldPosition(this.tmpA).add(this.tmpB.set(0.4, -0.25, 0)), 10, 0x7ff6ff, 1.2, 0.4, 0.07, 3); } break; }
+        case "lightColor": { const l = this.lights.find((x) => x.id === e.id); if (l) { l.light.color.set(e.color); (l.fixture!.material as THREE.MeshBasicMaterial).color.set(e.color).multiplyScalar(FIXTURE_GLOW); } break; }
         case "beaconCall": {
           const p = new THREE.Vector3(e.pos.x, e.pos.y + 0.2, e.pos.z);
           this.sparks.emit(p, 20, 0xbff8ff, 3, 0.6, 0.12, 0);
@@ -796,6 +870,31 @@ export class Renderer {
         }
       }
     }
+  }
+
+  private nearShake(p: { x: number; y: number; z: number }, k: number) {
+    const d = this.camera.position.distanceTo(this.tmpV.set(p.x, p.y, p.z));
+    this.shake = Math.max(this.shake, k * Math.max(0, 1 - d / 18));
+  }
+  private hideBench(id: string) { const b = this.decorById.get(id); if (b) { for (const it of b.userData.items) it.visible = false; b.userData.glow.intensity = 0.3; } }
+  /** Arandela decorativa que acompanha a luz de mesmo id (lampada-1 → lampada-1-vis). */
+  private lampOn(id: string) { const d = this.decorById.get(`${id}-vis`); if (d?.userData.bulb) { const b = d.userData.bulb as THREE.Mesh; b.material = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe0a0).multiplyScalar(FIXTURE_GLOW), toneMapped: false }); } }
+
+  /** Tear: fio violeta que atravessa até dois alvos. */
+  private tearShot(e: any) {
+    const cam = this.camera;
+    const from = this.tmpA.set(0.17, -0.17, -0.6).applyQuaternion(cam.quaternion).add(cam.position);
+    const to = this.tmpB.set(e.to.x, e.to.y, e.to.z);
+    this.addTracer(from, to, 0xc89bff, 0.014);
+    for (const h of e.hits as { id: string; killed: boolean; at: { x: number; y: number; z: number } }[]) {
+      this.hitFlashes.push({ c: h.id, t: 0.1 });
+      this.sparks.emit(this.tmpV.set(h.at.x, h.at.y, h.at.z), 8, (e.mul ?? 1) < 0.5 ? 0xffe0a0 : 0xd8b8ff, 3.5, 0.3, 0.1, 2);
+      this.shards.emit(this.tmpV, h.killed ? 4 : 8, 0x6a4a40, 3, 0.6, 0.05, 9);
+    }
+    if (!e.hits.length && e.normal) { this.tmpV.set(e.normal.x, e.normal.y, e.normal.z); this.sparks.emit(to, 8, 0xd8b8ff, 3, 0.35, 0.08, 6, this.tmpV); }
+    this.recoil = 1; this.vmTear.flash.visible = true; this.vmTear.flash.material.rotation = Math.random() * 6;
+    this.muzzleLight.color.set(0xc89bff); this.muzzleLight.position.copy(from); this.muzzleLight.intensity = 7;
+    this.shake = Math.max(this.shake, 0.08);
   }
 
   /** Fole: seis traçantes curtos em leque, cada fragmento com seu impacto. */
@@ -856,6 +955,57 @@ export class Renderer {
       if (v.mat.opacity <= 0) { v.g.removeFromParent(); v.mat.dispose(); this.cloudViews.delete(id); }
     }
   }
+  /** Tear (linhas e prévia), alvo e onda do Badalo, jato da bomba, dispensador e água do túnel. */
+  private syncF3(sim: Sim, dt: number) {
+    const t = this.time;
+    for (const [id, m] of this.tearViews) {
+      const mm = m.material as THREE.MeshBasicMaterial;
+      if (m.userData.fade !== undefined) { m.userData.fade -= dt; mm.opacity = Math.max(0, m.userData.fade / 0.4); if (m.userData.fade <= 0) { m.removeFromParent(); m.geometry.dispose(); this.tearViews.delete(id); } }
+      else { mm.opacity = 0.75 + Math.sin(t * 18 + id) * 0.25; m.position.y += Math.sin(t * 40) * 0.0005; }
+    }
+    // prévia: onde a linha vai ficar (verde-violeta válida, vermelha curta inválida)
+    const aim = sim.tearAim, ar = sim.arsenal, am = ar.ammo("tear");
+    const show = !!aim && ar.current === "tear" && ar.state === "ready" && !!am && am.mag >= WEAPONS.tear.altCost && sim.alive && !this.menuMode;
+    this.tearPreview.visible = show;
+    if (show && aim) {
+      const len = Math.max(0.3, Math.hypot(aim.b.x - aim.a.x, aim.b.z - aim.a.z));
+      this.tearPreview.position.set((aim.a.x + aim.b.x) / 2, aim.a.y + 0.03, (aim.a.z + aim.b.z) / 2);
+      this.tearPreview.rotation.set(-Math.PI / 2, 0, Math.atan2(-(aim.b.z - aim.a.z), aim.b.x - aim.a.x));
+      this.tearPreview.scale.set(aim.valid ? len : 0.4, 1, 1);
+      const pm = this.tearPreview.material as THREE.MeshBasicMaterial;
+      pm.color.set(aim.valid ? 0xc89bff : 0xff5050); pm.opacity = aim.valid ? 0.35 + Math.sin(t * 6) * 0.1 : 0.3;
+    }
+    // Badalo: alvo travado e onda
+    const boss = sim.creatures.find((c) => c.type === "badalo" && c.alive);
+    if (boss) {
+      if (this.badaloTarget.visible) { (this.badaloTarget.material as THREE.MeshBasicMaterial).opacity = 0.45 + Math.sin(t * 20) * 0.3; }
+      const wave = boss.state === "wave" || boss.state === "waveWarn";
+      this.waveRing.visible = wave;
+      if (wave) {
+        const fy = sim.nav.floorAt(boss.pos.x, boss.pos.z);
+        this.waveRing.position.set(boss.pos.x, (Number.isNaN(fy) ? boss.pos.y : fy) + 0.06, boss.pos.z);
+        const r = boss.state === "wave" ? Math.max(0.5, boss.waveR) : 1.6 + Math.sin(t * 30) * 0.15;
+        this.waveRing.scale.setScalar(r);
+        (this.waveRing.material as THREE.MeshBasicMaterial).color.set(boss.state === "wave" ? 0xffb080 : 0xff5030);
+        (this.waveRing.material as THREE.MeshBasicMaterial).opacity = boss.state === "wave" ? 0.85 : 0.5 + Math.sin(t * 24) * 0.3;
+      }
+    } else { this.waveRing.visible = false; }
+    // jato da bomba 1: spray que levanta a persiana
+    if (this.jetT > 0) {
+      this.jetT -= dt;
+      const j = this.decorById.get("jato");
+      if (j) { const p = j.getWorldPosition(this.tmpA); for (let i = 0; i < 4; i++) this.sparks.emit(p, 2, 0xcfe8f0, 6, 0.5, 0.12, 9, this.tmpB.set(0.3 + Math.random() * 0.2, 0.25, 0.9)); }
+    }
+    const disp = this.decorById.get("dispensador");
+    if (disp?.userData.lamp) {
+      const ready = (sim.script as any)?.dispenserT !== undefined ? (sim.script as any).dispenserT <= 0 : true;
+      disp.userData.blink = Math.max(0, (disp.userData.blink ?? 0) - dt);
+      (disp.userData.lamp.material as THREE.MeshBasicMaterial).color.set(disp.userData.blink > 0 ? (Math.sin(t * 30) > 0 ? 0xffffff : 0x40ff70) : ready ? 0x40ff70 : 0xff7030);
+    }
+    const water = this.decorById.get("agua-tunel");
+    if (water?.userData.water) (water.userData.water as THREE.Mesh).position.y = 0.02 + 0.2 * (sim.vars.agua ?? 1);
+  }
+
   private updateCloudSprites(v: { sprites: THREE.Sprite[]; age: number }, push: number, dt: number) {
     const t = this.time;
     for (const sp of v.sprites) {
@@ -953,8 +1103,8 @@ export class Renderer {
       seen.add(c.id);
       let v = this.creatures.get(c.id);
       if (!v) {
-        const rig = c.type === "riscador" ? buildRiscador() : c.type === "veu" ? buildVeu() : buildEstilhaco();
-        const shadow = new THREE.Mesh(new THREE.CircleGeometry(c.type === "riscador" ? 0.6 : 0.5, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: c.type === "veu" ? 0.25 : 0.45, depthWrite: false }));
+        const rig = c.type === "riscador" ? buildRiscador() : c.type === "veu" ? buildVeu() : c.type === "carapaca" ? buildCarapaca() : c.type === "badalo" ? buildBadalo() : buildEstilhaco();
+        const shadow = new THREE.Mesh(new THREE.CircleGeometry(c.type === "riscador" ? 0.6 : c.type === "carapaca" ? 0.95 : c.type === "badalo" ? 1.7 : 0.5, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: c.type === "veu" ? 0.25 : 0.45, depthWrite: false }));
         shadow.rotation.x = -Math.PI / 2;
         this.dynRoot.add(rig.root, shadow);
         if (rig.beam) this.scene.add(rig.beam);
@@ -1029,6 +1179,7 @@ export class Renderer {
     }
 
     this.syncClouds(sim, dt);
+    this.syncF3(sim, dt);
     // goteiras
     for (const dp of this.drips) if (Math.random() < dt * 1.5) this.sparks.emit(dp, 1, 0x9fc0d8, 0.05, Math.sqrt((2 * Math.max(0.5, dp.y)) / 9.8) + 0.1, 0.06, 9.8);
     // traçantes e partículas
@@ -1057,13 +1208,13 @@ export class Renderer {
   private animateCreature(v: CreatureView, sim: Sim, dt: number) {
     const { rig, c } = v;
     const t = this.time;
-    rig.root.position.set(c.pos.x, c.pos.y, c.pos.z);
+    rig.root.position.set(c.pos.x, c.type === "badalo" ? BADALO_RAIL_Y : c.pos.y, c.pos.z);
     rig.root.rotation.y = c.yaw;
     v.shadow.position.set(c.pos.x, (Number.isNaN(sim.nav.floorAt(c.pos.x, c.pos.z)) ? c.pos.y : sim.nav.floorAt(c.pos.x, c.pos.z)) + 0.02, c.pos.z);
     let flash = 0;
     for (const h of this.hitFlashes) if (h.c === c.id) { flash = Math.max(flash, h.t / 0.1); }
     // pele fosca: um acerto acende a carne por um instante (emissivo), os detalhes pulsam devagar
-    const prepGlow = c.state === "windup" || c.state === "swell" || c.state === "charge" || (c.state === "aim" && c.stateT >= 0) ? 1 : 0;
+    const prepGlow = c.state === "windup" || c.state === "swell" || c.state === "charge" || c.state === "stomp" || c.state === "tilt" || c.state === "waveWarn" || (c.state === "aim" && c.stateT >= 0) ? 1 : 0;
     for (const m of rig.mats) { m.emissive.setRGB(flash * 0.55, flash * 0.4, flash * 0.35); }
     for (let i = this.hitFlashes.length - 1; i >= 0; i--) if ((this.hitFlashes[i].t -= dt / Math.max(1, this.creatures.size)) <= 0) this.hitFlashes.splice(i, 1);
     rig.mark.visible = c.markT > 0 && c.alive;
@@ -1074,7 +1225,7 @@ export class Renderer {
       v.dying += dt;
       const k = Math.min(1, v.dying / 0.55), ease = k * k * (3 - 2 * k);
       if (c.type === "veu") { rig.body.position.y = v.dropY! * (1 - ease) + 0.15 * ease; rig.body.rotation.x = ease * 1.2; if (rig.sac) rig.sac.scale.set(1 - ease * 0.5, 0.8 * (1 - ease * 0.6), 1 - ease * 0.5); }
-      else if (c.type === "badalo") { rig.body.rotation.z = Math.sin(v.dying * 3) * 0.05 * (1 - k); }
+      else if (c.type === "badalo") { this.placeBadalo(rig, c); rig.body.rotation.z = Math.sin(v.dying * 3) * 0.05 * (1 - k); rig.head!.rotation.x = 0.45 * ease; rig.head!.position.y -= 0.0; }
       else {
         const floorK = c.type === "estilhaco" ? 0.3 : c.type === "carapaca" ? 0.45 : 0.18;
         rig.body.position.y = v.dropY! * (1 - ease) + floorK * ease;
@@ -1091,7 +1242,7 @@ export class Renderer {
     }
     rig.dissolve.value = 0;
     rig.root.scale.setScalar(c.state === "emerging" ? Math.min(1, 0.3 + c.stateT) : 1);
-    const prep = c.state === "windup" || (c.state === "aim" && c.stateT >= 0);
+    const prep = c.state === "windup" || (c.state === "aim" && c.stateT >= 0) || c.state === "stomp" || c.state === "charge" || c.state === "tilt" || c.state === "waveWarn";
     const vib = prep ? Math.sin(t * 90) * 0.06 : 0;
     for (let i = 0; i < rig.rims.length; i++) {
       const r = rig.rims[i];
@@ -1102,6 +1253,8 @@ export class Renderer {
     }
     const fl = c.flinch.t > 0 ? c.flinch.t / 0.32 : 0;
     if (c.type === "veu") { this.animateVeu(v, fl); return; }
+    if (c.type === "carapaca") { this.animateCarapaca(v, fl); return; }
+    if (c.type === "badalo") { this.animateBadalo(v, sim, fl); return; }
     if (c.type === "riscador") {
       const gait = c.anim * 2.2;
       rig.legs.forEach((l, i) => { l.rotation.x = Math.sin(gait + (i % 3 === 0 ? 0 : Math.PI)) * 0.5; });
@@ -1144,6 +1297,73 @@ export class Renderer {
     }
   }
 
+  /** Carapaça: marcha pesada; pisoteio antes da investida; placas do peito abrem depois de trombar no batente. */
+  private animateCarapaca(v: CreatureView, fl: number) {
+    const { rig, c } = v;
+    const t = this.time;
+    const charge = c.state === "charge", stomp = c.state === "stomp";
+    const gait = c.anim * (charge ? 3.2 : 1.6);
+    rig.legs.forEach((l, i) => { l.rotation.x = Math.sin(gait + (i === 0 || i === 3 ? 0 : Math.PI)) * (charge ? 0.55 : 0.35); });
+    let by = 0.95, rx = 0, rz = 0;
+    if (stomp) { const k = Math.sin(c.stateT * 14); by += Math.max(0, k) * 0.08; rig.legs[c.stateT * 7 % 2 < 1 ? 0 : 1].rotation.x = -0.6 * Math.max(0, k); rx = -0.06; }
+    if (charge) { rx = 0.16; by = 0.88; }
+    let open = 0;
+    if (c.state === "open") open = Math.min(1, c.stateT / 0.25) * (c.stateT > CARAPACA.openTime - 0.3 ? Math.max(0, (CARAPACA.openTime - c.stateT) / 0.3) : 1);
+    if (c.state === "stun") { rz = Math.sin(t * 22) * 0.07 * Math.max(0, 1 - c.stateT / CARAPACA.stunTime); by = 0.85; }
+    if (c.state === "open") { by = 0.82 + Math.sin(t * 5) * 0.02; rx = -0.08; }
+    rig.crown.forEach((cr) => { const side = cr.userData.side as number; cr.rotation.y = -side * 1.05 * open; });
+    (rig.core!.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.55 + open * 0.4, 0.3 + open * 0.4);
+    rig.core!.scale.set(0.12 + open * 0.08, 0.1 + open * 0.06, 0.05);
+    rig.body.position.y = by + Math.sin(c.anim * 3) * 0.015;
+    rig.body.rotation.x = rx - fl * 0.18;
+    rig.body.rotation.z = rz + c.flinch.side * fl * 0.12;
+    if (rig.head) rig.head.rotation.x = stomp ? Math.sin(c.stateT * 14) * 0.12 : 0;
+  }
+
+  /** Badalo: corre no trilho do teto; o sino desce pelo talo, crava e expõe o órgão. */
+  private placeBadalo(rig: CreatureRig, c: Creature) {
+    const drop = Math.max(2.4, BADALO_RAIL_Y - c.pos.y);
+    rig.head!.position.y = -drop;
+    const L = Math.max(0.2, drop - 2.2);
+    for (const ch of rig.body.children) {
+      const base = ch.userData.stretch as number | undefined;
+      if (!base) continue;
+      ch.scale.y = L / base;
+      ch.position.y = -L / 2;
+    }
+    rig.mark.position.y = -drop + 1.2;
+  }
+  private animateBadalo(v: CreatureView, sim: Sim, fl: number) {
+    const { rig, c } = v;
+    const t = this.time;
+    this.placeBadalo(rig, c);
+    const bell = rig.head!, organ = rig.crown[0];
+    let swayX = Math.sin(t * 0.7 + c.pos.x) * 0.025, swayZ = Math.cos(t * 0.55) * 0.025;
+    if (c.state === "tilt") {
+      const k = Math.min(1, c.stateT / BADALO.tiltTime);
+      const tgt = c.lockPos ?? sim.player.pos;
+      const dx = tgt.x - c.pos.x, dz = tgt.z - c.pos.z, l = Math.hypot(dx, dz) || 1;
+      // inclina o talo em direção ao alvo (no espaço do root, que gira com o yaw)
+      const cy = Math.cos(-c.yaw), sy = Math.sin(-c.yaw);
+      const lx = (dx * cy - dz * sy) / l, lz = (dx * sy + dz * cy) / l;
+      swayZ = -lx * 0.12 * k + Math.sin(t * 30) * 0.01 * k; swayX = lz * 0.12 * k;
+    }
+    if (c.state === "waveWarn") { const k = Math.min(1, c.stateT / BADALO.waveWarn); bell.rotation.y += 0.02; swayX += Math.sin(t * 60) * 0.012 * k; }
+    rig.body.rotation.x = swayX - fl * 0.03;
+    rig.body.rotation.z = swayZ + c.flinch.side * fl * 0.03;
+    const stuck = c.state === "stuck";
+    // cravado: a borda levanta de um lado e o órgão pulsa, exposto
+    const lift = stuck ? Math.min(1, c.stateT / 0.3) * (c.stateT > BADALO.stuckTime - 0.4 ? Math.max(0, (BADALO.stuckTime - c.stateT) / 0.4) : 1) : 0;
+    bell.rotation.x = lift * 0.32;
+    bell.position.y += lift * 0.25;
+    organ.position.y = 0.35 - lift * 0.15;
+    organ.scale.setScalar(1 + lift * (0.08 + Math.sin(t * 9) * 0.05));
+    (rig.core!.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.75 + lift * 0.25, 0.55 + lift * 0.35);
+    const sh = v.shadow; const h = Math.max(0, c.pos.y - (sim.nav.floorAt(c.pos.x, c.pos.z) || 0));
+    (sh.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - Math.min(0.75, h / 6));
+    sh.scale.setScalar(1 + h * 0.12);
+  }
+
   /** Véu: a fita ondula no shader, o saco incha antes de soltar a névoa e murcha depois. */
   private animateVeu(v: CreatureView, fl: number) {
     const { rig, c } = v;
@@ -1166,11 +1386,12 @@ export class Renderer {
     const has = !!cur;
     if (cur !== this.vmWeapon) {
       this.vmWeapon = cur;
-      this.vm = cur === "fole" ? this.vmFole : this.vmAgulha;
-      this.vmAgulha.flash.visible = false; this.vmFole.flash.visible = false;
+      this.vm = cur === "fole" ? this.vmFole : cur === "tear" ? this.vmTear : this.vmAgulha;
+      this.vmAgulha.flash.visible = false; this.vmFole.flash.visible = false; this.vmTear.flash.visible = false;
     }
     this.vmAgulha.root.visible = has && sim.alive && this.vm === this.vmAgulha;
     this.vmFole.root.visible = has && sim.alive && this.vm === this.vmFole;
+    this.vmTear.root.visible = has && sim.alive && this.vm === this.vmTear;
     this.vmBeacon.root.visible = sim.beacon.owned && sim.alive && (sim.beacon.state === "ready" || sim.beacon.state === "recharging");
     if (!has) return;
     const vm = this.vm, fole = vm === this.vmFole;
@@ -1215,7 +1436,7 @@ export class Renderer {
     vm.root.rotation.set(rx, ry, rz);
     const a = sim.arsenal.ammo();
     if (a) {
-      const max = fole ? FOLE_MAG : 24;
+      const max = WEAPONS[sim.arsenal.current!]?.mag ?? (fole ? FOLE_MAG : 24);
       const f = a.mag / max;
       vm.magMat.emissiveIntensity = 0.2 + f * 1.4;
       if (!fole) vm.mag.scale.y = 0.4 + f * 0.6;
@@ -1227,7 +1448,7 @@ export class Renderer {
         const m = vm.leds[i].material as THREE.MeshBasicMaterial;
         const on = i < lit;
         const blink = low && on && Math.sin(this.time * 12) < 0;
-        if (on && !blink) m.color.set(low ? 0xff5040 : fole ? 0xffa040 : 0x39d8ff); else m.color.set(0x0b1418);
+        if (on && !blink) m.color.set(low ? 0xff5040 : fole ? 0xffa040 : vm === this.vmTear ? 0xb07aff : 0x39d8ff); else m.color.set(0x0b1418);
       }
     }
     const glowK = this.reloadAnim > 0 ? 0.3 : 1;
@@ -1254,7 +1475,7 @@ export class Renderer {
     const t = this.time * 0.05;
     this.camera.position.set(74 + Math.sin(t) * 6, 2.2 + Math.sin(t * 0.8) * 0.3, -15.5);
     this.camera.rotation.set(0.02, 0.45 + Math.sin(t * 0.7) * 0.12, 0);
-    this.vmAgulha.root.visible = false; this.vmFole.root.visible = false; this.vmBeacon.root.visible = false;
+    this.vmAgulha.root.visible = false; this.vmFole.root.visible = false; this.vmTear.root.visible = false; this.vmBeacon.root.visible = false;
     for (const l of this.lights) {
       let f = 1;
       if (l.flicker) { const n = Math.sin(this.time * 13.1 + l.base) * Math.sin(this.time * 7.3 + l.base * 2); f = n > 1 - l.flicker ? 0.25 : 1; }

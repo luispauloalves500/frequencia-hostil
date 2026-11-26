@@ -284,8 +284,8 @@ export function buildBadalo(): CreatureRig {
   const core = new THREE.Mesh(SPH_LO, glowMat(0xffd0a0)); core.scale.setScalar(0.22); core.position.y = -0.25; organ.add(core);
   const accents: THREE.Mesh[] = [core];
   // tendões até o teto
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.4; const t = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 2.4, 6), dark); t.position.set(Math.cos(a) * 0.25, -1.1, Math.sin(a) * 0.25); t.rotation.set(Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12); body.add(t); }
-  const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 2.2, 8), shell); stalk.position.y = -3.0; body.add(stalk);
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.4; const t = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 2.4, 6), dark); t.position.set(Math.cos(a) * 0.25, -1.1, Math.sin(a) * 0.25); t.rotation.set(Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12); t.userData.stretch = 2.4; body.add(t); }
+  const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 2.2, 8), shell); stalk.position.y = -3.0; stalk.userData.stretch = 2.2; body.add(stalk);
   // anéis do dorso acendem na inclinação
   const rims: THREE.Mesh[] = [];
   for (let i = 0; i < 3; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.62 + i * 0.32, 0.025, 4, 28), glowMat(0xffb080, 0.45)); r.rotation.x = Math.PI / 2; r.position.y = 1.55 - i * 0.5; bell.add(r); rims.push(r); }

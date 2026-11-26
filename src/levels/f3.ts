@@ -1,4 +1,4 @@
-import { box, type World } from "../core/world";
+import { box, type Box, type World } from "../core/world";
 import type { Sim } from "../core/sim";
 import type { Creature } from "../core/creatures";
 import { ArenaDirector, type CreatureType } from "../core/waves";
@@ -10,6 +10,9 @@ import type { V3 } from "../core/math";
 const EAST = -Math.PI / 2, WEST = Math.PI / 2, NORTH = 0, SOUTH = Math.PI;
 
 /** Rampa/escada subindo ao longo de X. */
+/** Caixa só de colisão: o visual vem da decoração (tanque, bomba, bancada). */
+function hid(b: Box): Box { b.noRender = true; return b; }
+
 function stairsX(w: World, xBottom: number, xTop: number, z0: number, z1: number, height: number, steps: number, mat = "metal", y0 = 0) {
   const dir = Math.sign(xTop - xBottom), run = Math.abs(xTop - xBottom) / steps;
   for (let i = 0; i < steps; i++) {
@@ -59,10 +62,10 @@ function buildF3(w: World) {
   wallZ(w, -6, 6, 0, 5);
   wallZ(w, -6, 6, 28, 5, [[-1.5, 1.5]]);
   // tanques de filtro (laterais) e tanques baixos que estreitam a faixa central
-  for (const x of [8, 13, 18, 23]) { w.add(box(x - 0.9, 0, -5.8, x + 0.9, 3.4, -4.0, "metal")); w.add(box(x - 0.9, 0, 4.0, x + 0.9, 3.4, 5.8, "metal")); }
+  for (const x of [8, 13, 18, 23]) { hid(w.add(box(x - 0.9, 0, -5.8, x + 0.9, 3.4, -4.0, "metal"))); hid(w.add(box(x - 0.9, 0, 4.0, x + 0.9, 3.4, 5.8, "metal"))); }
   w.add(box(9.5, 0, 1.3, 25, 1.0, 3.9, "concreto", "solid", "leito-sul"));
   w.add(box(9.5, 0, -3.9, 25, 1.0, -1.3, "concreto", "solid", "leito-norte"));
-  w.add(box(4, 0, -5.8, 6.5, 0.95, -4.2, "metal", "solid", "bancada-tear"));
+  hid(w.add(box(4, 0, -5.8, 6.5, 0.95, -4.2, "metal", "solid", "bancada-tear")));
   // quadro 1 (porta aberta para experimentação)
   floor(w, 23, 6, 27, 9, "concreto");
   wallX(w, 23, 27, 9, 3.2); wallZ(w, 6, 9, 23, 3.2); wallZ(w, 6, 9, 27, 3.2);
@@ -80,7 +83,7 @@ function buildF3(w: World) {
   // corredor lateral para alcançar o dorso (sul)
   w.add(box(33, 0, 5.2, 48, 3.2, 5.6, "azulejo-parede"));
   // bomba 1
-  w.add(box(48.6, 0, -8.8, 51.8, 2.6, -5.0, "metal", "solid", "bomba1"));
+  hid(w.add(box(48.6, 0, -8.8, 51.8, 2.6, -5.0, "metal", "solid", "bomba1")));
   // persiana da galeria baixa (o jato da bomba 1 a levanta)
   w.add(box(51.8, 0, -1.5, 52.2, 3, 1.5, "persiana", "solid", "persiana-galeria"));
 
@@ -102,13 +105,13 @@ function buildF3(w: World) {
   w.add(box(54.6, 0, -5.6, 57.4, 2.4, -4.0, "azulejo-parede"));
   w.add(box(57.4, 0, -5.6, 57.6, 2.4, -4.0, "porta", "solid", "porta-rampa-folha"));
   // fileira de tanques: separa o corredor central (z −2..2) da margem sul
-  for (const x of [58, 63, 69, 74]) w.add(box(x - 1, 0, 2.4, x + 1, 2.2, 4.2, "metal"));
+  for (const x of [58, 63, 69, 74]) hid(w.add(box(x - 1, 0, 2.4, x + 1, 2.2, 4.2, "metal")));
   // porta sul (margem)
   floor(w, 64, 8, 68, 11, "concreto");
   wallX(w, 64, 68, 11, 4); wallZ(w, 8, 11, 64, 4); wallZ(w, 8, 11, 68, 4);
   w.add(box(64.5, 0, 7.85, 67.5, 3, 8.15, "porta", "solid", "porta-margem"));
   // bomba 2
-  w.add(box(78.2, 0, 5.0, 79.8, 2.2, 7.8, "metal", "solid", "bomba2"));
+  hid(w.add(box(78.2, 0, 5.0, 79.8, 2.2, 7.8, "metal", "solid", "bomba2")));
   // porta do abrigo do poço (abre com as duas lâmpadas)
   w.add(box(79.8, 0, -1.5, 80.2, 3, 1.5, "porta", "solid", "porta-abrigo"));
 
@@ -187,7 +190,7 @@ const DECOR: Decor[] = [
   ...[8, 13, 18, 23].flatMap((x) => [{ kind: "filterTank", pos: { x, y: 0, z: -4.9 } }, { kind: "filterTank", pos: { x, y: 0, z: 4.9 } }]),
   { kind: "filterBed", pos: { x: 17.25, y: 1.0, z: 2.6 }, size: { x: 15.5, y: 0, z: 2.6 } },
   { kind: "filterBed", pos: { x: 17.25, y: 1.0, z: -2.6 }, size: { x: 15.5, y: 0, z: 2.6 } },
-  { kind: "tearBench", pos: { x: 5.25, y: 0, z: -5 }, id: "bancada-tear" },
+  { kind: "tearBench", pos: { x: 5.25, y: 0, z: -5 }, size: { x: 2.5, y: 0.95, z: 1.6 }, id: "bancada-tear" },
   { kind: "lineMark", pos: { x: 14, y: 0, z: 0 }, size: { x: 0.6, y: 0, z: 2.4 } },
   { kind: "sign", pos: { x: 14, y: 2.2, z: -1.35 }, rot: NORTH, text: "LINHA DO TEAR → FAIXA NO PISO", color: 0xc89bff },
   { kind: "quadro", pos: { x: 25, y: 0, z: 8.6 }, rot: SOUTH, id: "quadro-1" },
@@ -203,7 +206,7 @@ const DECOR: Decor[] = [
   { kind: "arrow", pos: { x: 27.75, y: 2.4, z: 2.2 }, rot: EAST },
   // 2 · batente amarelo
   { kind: "sign", pos: { x: 40, y: 5.4, z: -8.75 }, rot: NORTH, text: "BOMBA 1 • BATENTE DE MANUTENÇÃO", color: 0xffd040 },
-  { kind: "pump", pos: { x: 50.2, y: 0, z: -6.9 }, rot: WEST, id: "bomba1" },
+  { kind: "pump", pos: { x: 50.2, y: 0, z: -6.9 }, rot: EAST, size: { x: 3.7, y: 2.6, z: 3.1 }, id: "bomba1" },
   { kind: "sign", pos: { x: 48.4, y: 3.2, z: -8.75 }, rot: NORTH, text: "BOMBA 1", color: 0xffb060 },
   { kind: "gauges", pos: { x: 45, y: 2.2, z: -8.75 }, rot: NORTH, id: "mostrador-1" },
   { kind: "pipes", pos: { x: 40, y: 5.6, z: -8.85 }, size: { x: 22, y: 0, z: 0 } },
@@ -216,8 +219,8 @@ const DECOR: Decor[] = [
   { kind: "jet", pos: { x: 51.2, y: 2.4, z: -4.8 }, id: "jato" },
   // 3 · galeria baixa
   { kind: "sign", pos: { x: 66, y: 5.2, z: -7.75 }, rot: NORTH, text: "GALERIA BAIXA • BOMBA 2 →", color: 0x9fd0e8 },
-  ...[58, 63, 69, 74].map((x) => ({ kind: "filterTank", pos: { x, y: 0, z: 3.3 }, size: { x: 1, y: 2.2, z: 0.9 } })),
-  { kind: "pump", pos: { x: 79, y: 0, z: 6.4 }, rot: EAST, id: "bomba2" },
+  ...[58, 63, 69, 74].map((x) => ({ kind: "filterTank", pos: { x, y: 0, z: 3.3 }, size: { x: 1.9, y: 2.2, z: 1.8 } })),
+  { kind: "pump", pos: { x: 79, y: 0, z: 6.4 }, rot: EAST, size: { x: 2.7, y: 2.2, z: 1.5 }, id: "bomba2" },
   { kind: "sign", pos: { x: 79.75, y: 3.2, z: 6.4 }, rot: EAST, text: "BOMBA 2", color: 0xffb060 },
   { kind: "quadro", pos: { x: 79.6, y: 0, z: -4 }, rot: EAST, id: "quadro-2" },
   { kind: "doorFrame", pos: { x: 66, y: 0, z: 7.95 }, rot: SOUTH, id: "porta-margem-quadro" },

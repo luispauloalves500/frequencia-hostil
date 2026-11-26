@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import * as TX from "./textures";
 import { signMesh, buildFoleModel } from "./models";
+import { buildF3Decor } from "./decorF3";
 
 /**
  * Decoração de cenário de F2 e do acabamento de F1. Materiais compartilhados (cache) para que a
@@ -251,7 +252,7 @@ export function buildExtraDecor(g: THREE.Group, d: { kind: string; size?: { x: n
       return true;
     }
   }
-  return false;
+  return buildF3Decor(g, d, ctx);
 }
 
 export { signMesh };

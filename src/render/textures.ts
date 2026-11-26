@@ -365,3 +365,23 @@ export const texSkin = () => canvasTex("skin", 256, (g, s) => {
   // poros
   for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(30,30,30,${0.2 + r() * 0.3})`; g.beginPath(); g.arc(r() * s, r() * s, 0.6 + r() * 1.2, 0, 7); g.fill(); }
 });
+
+/** Faixas de advertência amarelo/preto, gastas (batente da Carapaça). */
+export const texHazard = () => canvasTex("hazard", 256, (g, s) => {
+  g.fillStyle = "#c9a21c"; g.fillRect(0, 0, s, s);
+  g.fillStyle = "#1a1816";
+  for (let i = -s; i < s * 2; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 32, 0); g.lineTo(i + 32 + s, s); g.lineTo(i + s, s); g.closePath(); g.fill(); }
+  const r = rand(77);
+  // tinta lascada e marcas de impacto
+  for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(${90 + r() * 40},${80 + r() * 30},${70 + r() * 20},${0.35 + r() * 0.4})`; const w = 3 + r() * 16; g.fillRect(r() * s, r() * s, w, w * (0.3 + r() * 0.6)); }
+  for (let i = 0; i < 6; i++) crack(g, r, r() * s, r() * s, 30 + r() * 50, "rgba(20,16,12,0.6)");
+  noise(g, s, 0.12, r);
+});
+
+/** Leito filtrante: cascalho miúdo, molhado, com manchas de lodo. */
+export const texGravel = () => canvasTex("gravel", 256, (g, s) => {
+  g.fillStyle = "#3e3a32"; g.fillRect(0, 0, s, s);
+  const r = rand(31);
+  for (let i = 0; i < 2600; i++) { const v = 50 + r() * 70; g.fillStyle = `rgb(${v},${v * 0.95},${v * 0.82})`; g.beginPath(); g.arc(r() * s, r() * s, 1 + r() * 2.6, 0, Math.PI * 2); g.fill(); }
+  for (let i = 0; i < 9; i++) { const x = r() * s, y = r() * s, rr = 14 + r() * 30; const gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, "rgba(28,40,30,0.7)"); gr.addColorStop(1, "rgba(28,40,30,0)"); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+});
