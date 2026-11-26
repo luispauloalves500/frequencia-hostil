@@ -10,13 +10,14 @@ import { Autopilot } from "./autopilot";
 import { F1 } from "./levels/f1";
 import { makeLab, type LabStage } from "./levels/lab";
 import { F2 } from "./levels/f2";
-import { defaultF2Entry as f2Entry, f2EntryFromF1, migrateCheckpoint } from "./core/progress";
+import { F3 } from "./levels/f3";
+import { defaultF2Entry as f2Entry, defaultF3Entry as f3Entry, f2EntryFromF1, f3EntryFromF2, migrateCheckpoint } from "./core/progress";
 import type { LevelDef } from "./levels/types";
 import { angleDiff, yawTo } from "./core/math";
 import * as UI from "./ui/dom";
 import { PlanRunner, tutorialToShelter, dieInWave2, finishPraca, quickOpening, f2Full, f2TakeFole, f2LowPassage, f2HighRoute, f2Praca, f2Boia, type Plan } from "./scenarios";
 
-export const BUILD = { version: "0.4.0", milestone: "D04" };
+export const BUILD = { version: "0.5.0", milestone: "D05" };
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -30,6 +31,7 @@ type GState = "menu" | "loading" | "playing" | "paused" | "dead" | "result";
 
 function levelById(id: string): LevelDef {
   if (id === "F2" || id === "F2P") return F2; // "F2P" = registro da prévia antiga
+  if (id === "F3") return F3;
   if (id === "LAB") return makeLab(LAB ?? "d02");
   return F1;
 }
@@ -136,7 +138,7 @@ class Game {
     const cont = $<HTMLButtonElement>("btnContinue");
     cont.disabled = !save;
     $<HTMLButtonElement>("btnSelect").disabled = !(save?.completed.includes("F1"));
-    $("continueInfo").textContent = save ? `Último registro: ${save.checkpoint.phase === "F2" ? "F2 • Mercado Afogado" : "F1 • Última Chamada"} • ${save.checkpoint.point} • ${({ historia: "História", normal: "Normal", intenso: "Intenso" } as const)[save.checkpoint.difficulty]}` : this.store.sessionOnly ? "Progresso disponível apenas nesta sessão" : "";
+    $("continueInfo").textContent = save ? `Último registro: ${save.checkpoint.phase === "F3" ? "F3 • Casa das Bombas" : save.checkpoint.phase === "F2" ? "F2 • Mercado Afogado" : "F1 • Última Chamada"} • ${save.checkpoint.point} • ${({ historia: "História", normal: "Normal", intenso: "Intenso" } as const)[save.checkpoint.difficulty]}` : this.store.sessionOnly ? "Progresso disponível apenas nesta sessão" : "";
     this.show("menu");
   }
 
@@ -182,6 +184,8 @@ class Game {
     add("F1 • Última Chamada <small>repetição • 8–10 min</small>", () => { this.replay = true; this.startLevel(F1, "F1-A", undefined); });
     // repetição de F2 começa com o arsenal de quem terminou F1 (Agulha e baliza)
     add("F2 • Mercado Afogado <small>repetição • 10–12 min</small>", () => { this.replay = true; this.startLevel(F2, "F2-A", f2Entry(this.difficulty)); }, !!save?.unlocked.includes("F2"));
+    // repetição de F3 começa com o arsenal de quem terminou F2 (Agulha, Fole e baliza)
+    add("F3 • Casa das Bombas <small>repetição • 12–15 min</small>", () => { this.replay = true; this.startLevel(F3, "F3-A", f3Entry(this.difficulty)); }, !!save?.unlocked.includes("F3"));
     const back = document.createElement("button"); back.textContent = "Voltar"; back.onclick = () => this.showMenu(); list.appendChild(back);
   }
 
@@ -275,9 +279,14 @@ class Game {
     this.startLevel(levelById(cp.phase), cp.point, cp);
   }
   goNext() {
-    if (this.sim?.level.id === "F2") return; // F3 ainda não existe
+    if (this.sim?.level.id === "F3") return; // F4 ainda não existe
     const s = this.loadSave();
     const cp = this.replay ? this.lastCp : s?.checkpoint;
+    if (this.sim?.level.id === "F2") {
+      // a F3 começa com o inventário com que a F2 terminou (Fole incluído)
+      this.startLevel(F3, "F3-A", cp && cp.phase === "F3" ? cp : f3Entry(this.difficulty));
+      return;
+    }
     // a F2 começa com o inventário com que a F1 terminou
     this.startLevel(F2, "F2-A", cp && cp.phase === "F2" ? cp : f2Entry(this.difficulty));
   }
@@ -306,9 +315,12 @@ class Game {
           if (this.lastCp) { this.lastCp = { ...this.lastCp, deaths: (this.lastCp.deaths ?? 0) + 1, playTime: sim.playTimeBase + sim.stats.time }; if (!this.replay) { const prev = this.store.load(); if (prev) this.store.save({ ...prev, checkpoint: this.lastCp }); } }
           break;
         }
-        case "levelComplete": if (sim.level.id === "F2") this.completeF2(e.route, e.alive ?? 0); else this.complete(e.route); break;
-        case "pickup": this.toast(e.kind === "dardos" ? `+${e.amount} dardos` : e.kind === "fole" ? `+${e.amount} cargas do Fole` : "+1 curativo"); break;
-        case "switch": if (e.weapon === "fole" && !this.foleHinted) { this.foleHinted = true; this.toast("Fole • 2 ou roda do mouse troca de arma"); } break;
+        case "levelComplete": if (sim.level.id === "F3") this.completeF3(e.route, e.boss ?? 0, e.stuck ?? {}); else if (sim.level.id === "F2") this.completeF2(e.route, e.alive ?? 0); else this.complete(e.route); break;
+        case "pickup": this.toast(e.kind === "dardos" ? `+${e.amount} dardos` : e.kind === "fole" ? `+${e.amount} cargas do Fole` : e.kind === "tear" ? `+${e.amount} fio do Tear` : "+1 curativo"); break;
+        case "tearInvalid": this.toast("Sem piso firme para a linha"); break;
+        case "bossStart": this.bossBar(e.name); break;
+        case "switch": if (e.weapon === "fole" && !this.foleHinted) { this.foleHinted = true; this.toast("Fole • 2 ou roda do mouse troca de arma"); } else if (e.weapon === "tear" && !this.tearHinted) { this.tearHinted = true; this.toast("Tear • 3 • botão direito estica a linha no piso"); } break;
+        case "bossDead": this.bossBar(null); break;
       }
     }
   }
@@ -337,8 +349,10 @@ class Game {
 
   completeF2(route: string, alive: number) {
     const sim = this.sim!;
-    const exitCp: Checkpoint = { ...sim.checkpoint("F2-B"), objective: "Mercado Afogado concluído" };
-    this.persist(exitCp, { completed: ["F1", "F2"], unlocked: ["F1", "F2"] });
+    // registro de entrada da F3: leva vida, curativos, arsenal (Fole incluído) e baliza da F2
+    sim.applyShelterFloor();
+    const exitCp: Checkpoint = f3EntryFromF2(sim.checkpoint("F3-A"));
+    this.persist(exitCp, { completed: ["F1", "F2"], unlocked: ["F1", "F2", "F3"] });
     this.state = "result";
     this.input.releaseLock();
     const st = sim.stats;
@@ -356,12 +370,47 @@ class Game {
     (window as any).__fhResult = { level: "F2", route, alive, ...st, deathsTotal: sim.deathsBase + st.deaths };
     $("resTitle").textContent = "F2 • Mercado Afogado";
     $("resQuote").textContent = "Nara: “Comporta baixa vencida. Próxima parada: a casa das bombas.”";
-    const nb = $<HTMLButtonElement>("btnNext"); nb.disabled = true; nb.textContent = "F3 • Casa das Bombas — em breve";
+    const nb = $<HTMLButtonElement>("btnNext"); nb.disabled = false; nb.textContent = "Seguir para a casa das bombas";
     this.show("result");
+  }
+
+  completeF3(route: string, bossSecs: number, stuck: Record<string, number>) {
+    const sim = this.sim!;
+    this.bossBar(null);
+    sim.applyShelterFloor();
+    const exitCp: Checkpoint = { ...sim.checkpoint("F3-B"), objective: "Casa das Bombas concluída" };
+    this.persist(exitCp, { completed: ["F1", "F2", "F3"], unlocked: ["F1", "F2", "F3"] });
+    this.state = "result";
+    this.input.releaseLock();
+    const st = sim.stats;
+    const total = sim.playTimeBase + st.time;
+    const mm = Math.floor(total / 60), ss = Math.floor(total % 60);
+    const tearAcc = st.tearShots ? Math.round((st.tearHits / st.tearShots) * 100) : 0;
+    const bm = Math.floor(bossSecs / 60), bs = Math.floor(bossSecs % 60);
+    $("resTable").innerHTML = [
+      ["Tempo", `${mm}:${String(ss).padStart(2, "0")}`], ["Rota na galeria baixa", route === "passarela" ? "Pela passarela (curva em U)" : "Pela margem"],
+      ["Criaturas derrubadas", String(st.kills)], ["Badalo", `${bm}:${String(bs).padStart(2, "0")}`],
+      ["Quedas do sino nas placas", `${(stuck.lia ?? 0) + (stuck.baliza ?? 0)} (baliza: ${stuck.baliza ?? 0})`],
+      ["Fios do Tear no alvo", `${Math.min(200, tearAcc)}%`], ["Linhas no piso", String(st.tearLines)],
+      ["Quedas", String(sim.deathsBase + st.deaths)], ["Dano recebido", String(Math.round(st.damageTaken))],
+    ].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
+    (window as any).__fhResult = { level: "F3", route, bossSecs, stuck, ...st, deathsTotal: sim.deathsBase + st.deaths };
+    $("resTitle").textContent = "F3 • Casa das Bombas";
+    $("resQuote").textContent = "Nara (eco): “...a luz da rua... sobe, Lia.”";
+    const nb = $<HTMLButtonElement>("btnNext"); nb.disabled = true; nb.textContent = "F4 • Rua das Vozes — em breve";
+    this.show("result");
+  }
+
+  /** Barra do chefe (nome e vida). */
+  bossBar(name: string | null) {
+    const el = $("bossBar"); if (!el) return;
+    el.classList.toggle("on", !!name);
+    if (name) $("bossName").textContent = name;
   }
 
   // ---------- HUD ----------
   clearHud() {
+    this.bossBar(null);
     $("subtitles").innerHTML = ""; this.subLines = [];
     $("dirs").innerHTML = ""; this.dirInd = []; this.dmgInd = [];
   }
@@ -393,10 +442,12 @@ class Game {
   private slotKey = -1;
   private fogVis = 0;
   foleHinted = false;
+  tearHinted = false;
   private diagT = 0;
   updateHud(dt: number) {
     const sim = this.sim!;
     const hp = Math.max(0, Math.ceil(sim.hp));
+    if (sim.vars.bossHp !== undefined) UI.style("bossFill", "width", `${Math.round(sim.vars.bossHp * 1000) / 10}%`);
     UI.style("hpFill", "width", `${hp}%`); UI.cls("hpFill", "low", hp <= 30); UI.text("hpNum", String(hp));
     if (!this.kitEls) this.kitEls = Array.from(document.querySelectorAll<HTMLElement>("#medkits .kit"));
     this.kitEls.forEach((k, i) => { UI.elCls(k, "on", i < sim.medkits); UI.elCls(k, "healing", sim.healT >= 0 && i === sim.medkits - 1); });
@@ -553,9 +604,12 @@ if (DEBUG) {
     get state() { return game.state; },
     setSpeed(s: number) { game.timeScale = s; },
     /** Começa uma fase a partir de um registro (como o Continuar faria), gravando progresso se replay = false. */
-    startWith(id: "F1" | "F2", point: string, cp: Checkpoint, replay = false) { game.replay = replay; game.difficulty = cp.difficulty; game.startLevel(id === "F2" ? F2 : F1, point, cp, !replay); },
+    startWith(id: "F1" | "F2" | "F3", point: string, cp: Checkpoint, replay = false) { game.replay = replay; game.difficulty = cp.difficulty; game.startLevel(levelById(id), point, cp, !replay); },
     /** Começa uma fase direto (F2 com o inventário padrão de fim da F1). */
-    start(id: "F1" | "F2", point?: string) { game.replay = true; game.startLevel(id === "F2" ? F2 : F1, point ?? `${id}-A`, id === "F2" ? { ...f2Entry(game.difficulty), point: point ?? "F2-A", flags: point === "F2-B" ? { fole: true, registro1: true } : {}, weapons: point === "F2-B" ? { agulha: { mag: 24, reserve: 72 }, fole: { mag: 8, reserve: 8 } } : { agulha: { mag: 24, reserve: 72 } } } : undefined); },
+    start(id: "F1" | "F2" | "F3", point?: string) {
+      game.replay = true;
+      if (id === "F3") { const cp = f3Entry(game.difficulty); game.startLevel(F3, point ?? "F3-A", { ...cp, point: point ?? "F3-A", weapons: point === "F3-B" ? { ...cp.weapons, tear: { mag: 12, reserve: 24 } } : cp.weapons }); return; }
+      game.startLevel(id === "F2" ? F2 : F1, point ?? `${id}-A`, id === "F2" ? { ...f2Entry(game.difficulty), point: point ?? "F2-A", flags: point === "F2-B" ? { fole: true, registro1: true } : {}, weapons: point === "F2-B" ? { agulha: { mag: 24, reserve: 72 }, fole: { mag: 8, reserve: 8 } } : { agulha: { mag: 24, reserve: 72 } } } : undefined); },
     /** Equivale a mover o mouse até mirar o ponto (só no modo de depuração). */
     aimAt(p: { x: number; y: number; z: number }) { if (game.sim) new Autopilot(game.sim).aimAt(p); },
     autopilot() { if (!game.sim) return null; game.auto = new Autopilot(game.sim); return game.auto; },

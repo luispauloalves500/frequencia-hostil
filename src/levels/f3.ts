@@ -75,7 +75,7 @@ function buildF3(w: World) {
   w.add(box(27.8, 0, -9, 28.2, 7, -6, "azulejo-parede")); w.add(box(27.8, 0, 6, 28.2, 7, 9, "azulejo-parede"));
   w.add(box(27.8, 5, -6, 28.2, 7, 6, "azulejo-parede"));
   wallZ(w, -9, 9, 52, 7, [[-1.5, 1.5]]);
-  w.add(box(38, 0, -4, 39.2, 1.15, 4, "batente", "solid", "batente-1")); // batente largo na linha de avanço
+  w.add(box(38, 0, -9, 39.2, 1.15, 5.2, "batente", "solid", "batente-1")); // batente de parede a parede; só o corredor lateral contorna
   w.add(box(30.5, 0, -8.7, 31.3, 1.15, -4.5, "batente", "solid", "batente-2"));
   // corredor lateral para alcançar o dorso (sul)
   w.add(box(33, 0, 5.2, 48, 3.2, 5.6, "azulejo-parede"));
@@ -90,14 +90,14 @@ function buildF3(w: World) {
   wallZ(w, -8, 8, 80, 6, [[-1.5, 1.5]]);
   // escada de serviço (revelada pelo jato) até a passarela norte (2,6 m)
   stairs(w, 52.4, 54.6, -1.8, -5.6, 2.6, 10, "metal");
-  w.add(box(54.6, 2.4, -8, 80, 2.6, -5.6, "metal", "solid", "passarela-norte"));
+  w.add(box(54.6, 0, -8, 80, 2.6, -5.6, "metal", "solid", "passarela-norte"));
   w.add(box(54.6, 2.6, -5.7, 74, 3.6, -5.55, "grade", "grate"));
   // curva em U (x 76..80) e escada que desce para o térreo, junto da porta do abrigo
-  w.add(box(76, 2.4, -8, 80, 2.6, -3, "metal", "solid", "curva"));
+  w.add(box(76, 0, -8, 80, 2.6, -3, "metal", "solid", "curva"));
   stairs(w, 76.4, 78.4, 2.6, -3, 2.6, 10, "metal");
   // rampa de volta: sobe do térreo (x 62) até o patamar da curva (x 74..76)
   stairsX(w, 62, 74, -5.5, -4.1, 2.4, 12, "metal");
-  w.add(box(74, 2.4, -5.6, 76, 2.6, -3, "metal"));
+  w.add(box(74, 0, -5.6, 76, 2.6, -3, "metal"));
   // nicho da porta da rampa (sob a passarela)
   w.add(box(54.6, 0, -5.6, 57.4, 2.4, -4.0, "azulejo-parede"));
   w.add(box(57.4, 0, -5.6, 57.6, 2.4, -4.0, "porta", "solid", "porta-rampa-folha"));
@@ -305,6 +305,7 @@ export class F3Script {
   route: "passarela" | "margem" = "margem";
   stuckBy: Record<string, number> = { lia: 0, baliza: 0, demo: 0 };
   carapacaOpened = 0;
+  private carPrev = "";
   water = 1;
   private seenEv = new WeakSet<object>();
   constructor(private sim: Sim) {}
@@ -375,7 +376,7 @@ export class F3Script {
 
     // 2 · Batente amarelo: a Carapaça sozinha; a bomba 1 revela a escada de serviço
     if (!f.bomba1) {
-      const car = s.spawnCreature("carapaca", { x: 46, y: 0, z: 2.5 }, { tag: "carapaca", home: { x: 45, y: 0, z: 1 } });
+      const car = s.spawnCreature("carapaca", { x: 46, y: 0, z: -1.5 }, { tag: "carapaca", home: { x: 45, y: 0, z: -2.5 } });
       car.yaw = WEST;
       s.triggers.push({
         id: "batente", min: { x: 29, y: -1, z: -9 }, max: { x: 52, y: 5, z: 9 }, once: true, fired: false,
@@ -550,7 +551,7 @@ export class F3Script {
         s.say("Nara", "Parou! Os mostradores foram a zero... o túnel tá secando. Vai pela inspeção!", 5);
       }
     }
-    for (const c of s.creatures) if (c.type === "carapaca" && c.state === "open" && c.stateT <= dt + 1e-6) this.carapacaOpened++;
+    for (const c of s.creatures) if (c.type === "carapaca") { if (c.state === "open" && this.carPrev !== "open") this.carapacaOpened++; this.carPrev = c.state; }
     // nível da água no túnel acompanha o chefe: cheio enquanto vive, drena em ~4 s depois
     this.water = this.bossDead ? Math.max(0, this.water - dt / 4) : 1;
     s.vars.agua = this.water;

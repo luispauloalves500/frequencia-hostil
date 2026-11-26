@@ -394,3 +394,226 @@ export function* f2Full(r: PlanRunner, route: "baixo" | "cima"): Plan {
   yield* f2Praca(r);
   yield* f2Boia(r);
 }
+
+// ---------------------------------------------------------------- F3
+import { F3Script, F3_POINTS } from "./levels/f3";
+import { BADALO } from "./config";
+const f3 = (s: Sim) => s.script as unknown as F3Script;
+
+/** Pega o Tear na bancada da galeria dos filtros. */
+export function* f3TakeTear(r: PlanRunner): Plan {
+  const s = r.sim, a = r.auto;
+  yield* r.goto({ x: 5.25, y: 0, z: -3.3 });
+  a.aimOverride = F3_POINTS.tear; yield; yield;
+  a.push({ interact: true }); yield; a.aimOverride = null;
+  yield* r.until(() => !!s.flags.tear, 2, "Tear");
+  r.say(`pegou o Tear (${s.arsenal.ammo("tear")?.mag}/${s.arsenal.ammo("tear")?.reserve})`);
+}
+
+/** Galeria dos filtros: estica a linha do Tear na faixa e derruba os dois Riscadores. */
+export function* f3Filtros(r: PlanRunner): Plan {
+  const s = r.sim, a = r.auto;
+  a.weapon = "tear";
+  yield* r.goto({ x: 10.2, y: 0, z: 0 });
+  yield* r.until(() => s.arsenal.current === "tear" && s.arsenal.state === "ready", 3, "Tear em mãos");
+  // espera o primeiro Riscador sair da grelha e estica a linha transversal na faixa, entre ele e Lia
+  a.fight = false;
+  yield* r.until(() => s.creatures.some((c) => c.tag === "filtro" && c.alive && c.state !== "emerging"), 10, "primeiro Riscador da faixa");
+  a.aimOverride = { x: 15.5, y: 0, z: 0 }; yield; yield;
+  a.push({ altPressed: true }); yield; yield; a.aimOverride = null;
+  r.data.linePlaced = s.tearLines.length > 0;
+  r.say(`linha do Tear no piso: ${r.data.linePlaced}`);
+  let lineHits = 0;
+  const track = () => { for (const l of s.tearLines) lineHits = Math.max(lineHits, l.hit.length); };
+  // segura o tiro até o bicho pisar na linha (ou chegar perto)
+  yield* r.until(() => { track(); const c = s.creatures.find((x) => x.tag === "filtro" && x.alive); return lineHits > 0 || !c || Math.hypot(c.pos.x - s.player.pos.x, c.pos.z - s.player.pos.z) < 4; }, 6, "Riscador na linha");
+  a.fight = true;
+  yield* r.until(() => { track(); return s.creatures.filter((c) => c.tag === "filtro").length >= 2; }, 16, "dois Riscadores da faixa");
+  const end = s.t + 40;
+  while (s.creatures.some((c) => c.tag === "filtro" && c.alive)) {
+    track();
+    if (s.t > end) throw new Error("faixa não limpou");
+    if (!s.alive) throw new Error("morreu na faixa");
+    const c = s.creatures.find((x) => x.tag === "filtro" && x.alive)!;
+    if (!a.target()) a.moveTo(c.pos); else a.stop();
+    yield;
+  }
+  a.stop();
+  r.data.lineHits = lineHits;
+  r.say(`faixa limpa; passagens pela linha: ${lineHits}`);
+  yield* r.goto({ x: 29, y: 0, z: 0 });
+  a.weapon = null;
+}
+
+/** Batente amarelo: leva a Carapaça a trombar no batente, derruba-a e liga a bomba 1. */
+export function* f3Batente(r: PlanRunner, kill = true): Plan {
+  const s = r.sim, a = r.auto;
+  const car = s.creatures.find((c) => c.type === "carapaca")!;
+  a.fight = false;
+  yield* r.goto({ x: 36.6, y: 0, z: -1.5 });
+  a.aimOverride = car.center(); yield; yield; a.aimOverride = null;
+  a.fight = true;
+  yield* r.until(() => car.state === "open" || !car.alive, 25, "Carapaça no batente");
+  r.data.carapacaOpenedAt = s.t; r.say(`carapaça ${car.state} vivo ${car.alive} hp ${car.hp} pos ${car.pos.x.toFixed(1)},${car.pos.z.toFixed(1)}`);
+  r.say(`Carapaça trombou no batente (placas abertas): ${car.state === "open"}`);
+  if (kill) {
+    const end = s.t + 60;
+    while (car.alive) {
+      if (s.t > end) throw new Error(`Carapaça não caiu (${car.hp})`);
+      if (!s.alive) throw new Error("morreu para a Carapaça");
+      // fica atrás do batente: cada investida termina nele
+      if (Math.hypot(s.player.pos.x - 36.6, s.player.pos.z + 1.5) > 1.2) a.moveTo({ x: 36.6, y: 0, z: -1.5 }); else a.stop();
+      if (s.hp < 45 && s.medkits > 0 && s.healT < 0) a.push({ heal: true });
+      yield;
+    }
+    r.data.carapacaKilled = true;
+    r.data.carapacaOpens = f3(s).carapacaOpened;
+    r.say(`Carapaça derrubada (aberturas: ${r.data.carapacaOpens})`);
+  }
+  a.fight = false;
+  yield* r.goto({ x: 47.5, y: 0, z: -6.6 }, { timeout: 30 });
+  a.aimOverride = F3_POINTS.bomba1; yield; yield;
+  a.push({ interact: true }); yield; a.aimOverride = null;
+  yield* r.until(() => !!s.flags.bomba1, 2, "bomba 1");
+  yield* r.until(() => !s.world.get("persiana-galeria")!.enabled, 3, "persiana da galeria");
+  r.say("bomba 1 ligada; persiana aberta");
+  a.fight = true;
+}
+
+/** Galeria baixa: escada de serviço, passarela, curva em U (pico), bomba 2 e abrigo do poço. */
+export function* f3Galeria(r: PlanRunner, route: "passarela" | "margem" = "passarela"): Plan {
+  const s = r.sim, a = r.auto, sc = f3(s);
+  const fightHere = function* (radius: number, secs: number) {
+    const end = s.t + secs;
+    for (;;) {
+      const pend = (sc.arenaGal?.pending.length ?? 0) + (sc.arenaPico?.pending.length ?? 0);
+      const hostile = s.creatures.filter((c) => c.alive && c.state !== "emerging" && c.type !== "badalo" && Math.hypot(c.pos.x - s.player.pos.x, c.pos.z - s.player.pos.z) < radius);
+      if (!hostile.length && !pend) break;
+      if (s.t > end) throw new Error("galeria não limpou");
+      if (!s.alive) throw new Error("morreu na galeria");
+      if (!a.target() && hostile.length) a.moveTo(hostile[0].pos); else a.stop();
+      if (s.hp < 50 && s.medkits > 0 && s.healT < 0) a.push({ heal: true });
+      yield;
+    }
+    a.stop();
+  };
+  yield* r.goto({ x: 53.2, y: 0, z: 0.5 });
+  yield* r.until(() => sc.arenaGal?.state !== "idle", 3, "travessia da galeria");
+  if (route === "passarela") {
+    yield* r.goto({ x: 56, y: 2.6, z: -6.8 }, { timeout: 30 });
+    yield* fightHere(18, 90);
+    yield* r.goto({ x: 70, y: 2.6, z: -6.8 }, { timeout: 30 });
+    yield* r.goto({ x: 78, y: 2.6, z: -6 }, { timeout: 30 });
+    yield* r.until(() => !!s.flags.pico, 2, "pico da curva");
+    r.data.pico = true;
+    r.say("pisou na curva: pico (rampa + abertura)");
+    yield* fightHere(30, 120);
+    yield* r.goto({ x: 77.4, y: 0, z: 3.4 }, { timeout: 30 });
+  } else {
+    yield* r.goto({ x: 60, y: 0, z: 6 }, { timeout: 30 });
+    yield* fightHere(20, 90);
+    yield* r.goto({ x: 76.5, y: 0, z: 6.2 }, { timeout: 30 });
+  }
+  yield* r.goto({ x: 77.2, y: 0, z: 6.2 }, { timeout: 20 });
+  a.fight = false; a.aimOverride = F3_POINTS.bomba2; yield; yield;
+  a.push({ interact: true }); yield; a.aimOverride = null; a.fight = true;
+  yield* r.until(() => !!s.flags.bomba2, 2, "bomba 2");
+  yield* r.until(() => !s.world.get("porta-abrigo")!.enabled, 3, "porta do abrigo");
+  r.say("bomba 2 ligada; duas lâmpadas; abrigo aberto");
+  a.fight = false;
+  yield* r.goto({ x: 79, y: 0, z: 0 }, { timeout: 20 });
+  yield* r.goto({ x: 83, y: 0, z: 0 }, { timeout: 20 });
+  yield* r.until(() => !!s.flags.abrigoB, 2, "abrigo F3-B");
+  a.fight = true;
+  r.say(`abrigo do poço (vida ${Math.ceil(s.hp)})`);
+}
+
+/**
+ * Badalo. "posicao": espera sobre a placa e sai depois da trava; "baliza": pulsa a baliza sobre a placa
+ * enquanto ele se inclina; "alterna": um ciclo de cada. `stopAtHalf` para logo depois da transição.
+ */
+export function* f3Boss(r: PlanRunner, method: "posicao" | "baliza" | "alterna" = "alterna", stopAtHalf = false): Plan {
+  const s = r.sim, a = r.auto, sc = f3(s);
+  const P = F3_POINTS.plates;
+  yield* r.goto({ x: 88.8, y: 0, z: 0 }, { timeout: 20 });
+  yield* r.until(() => sc.bossStarted, 2, "chefe acordou");
+  const b = sc.boss!;
+  r.say("Badalo: entrada (batida livre na placa norte)");
+  let cycle = 0, called = false, lastState = "";
+  const end = s.t + 400;
+  const nearestPlate = () => { let bi = 0, bd = 1e9; P.forEach((p, i) => { const d = Math.hypot(p.x - s.player.pos.x, p.z - s.player.pos.z); if (d < bd) { bd = d; bi = i; } }); return bi; };
+  while (b.alive) {
+    if (s.t > end) throw new Error(`chefe não caiu (${b.state} ${Math.ceil(b.hp)})`);
+    if (!s.alive) throw new Error(`morreu no chefe (${b.state} ${Math.ceil(b.hp)})`);
+    if (stopAtHalf && b.halfDone && s.creatures.some((c) => c.tag === "transicao")) { r.data.atHalf = true; return; }
+    if (b.state !== lastState) { lastState = b.state; if (b.state === "tilt") { cycle++; called = false; } }
+    const useBeacon = method === "baliza" || (method === "alterna" && sc.stuckBy.baliza < sc.stuckBy.lia);
+    const commons = s.creatures.filter((c) => c.alive && c.type !== "badalo" && c.state !== "emerging");
+    if (s.hp < 50 && s.medkits > 0 && s.healT < 0) a.push({ heal: true });
+    const ag = s.arsenal.ammo("agulha");
+    if (ag && ag.reserve < 30 && sc.dispenserT <= 0 && b.state !== "stuck" && b.state !== "tilt" && !commons.length) {
+      a.fight = false; yield* r.goto({ x: 87.4, y: 0, z: -11.6 }, { timeout: 15 });
+      a.aimOverride = F3_POINTS.dispenser; yield; yield; a.push({ interact: true }); yield; a.aimOverride = null; a.fight = true;
+      continue;
+    }
+    if (b.state === "wave") {
+      const d = Math.hypot(s.player.pos.x - b.pos.x, s.player.pos.z - b.pos.z);
+      if (d > b.waveR && d - b.waveR < 1.25 && s.player.grounded) a.push({ jump: true });
+      yield; continue;
+    }
+    if (b.state === "stuck") { a.fight = true; a.stop(); yield; continue; }
+    if (commons.length) { a.fight = true; if (!a.target()) a.moveTo(commons[0].pos); else a.stop(); yield; continue; }
+    if (b.state === "tilt" || b.state === "intro" || b.state === "drop") {
+      if (b.locked && b.lockSrc === "lia" && b.lockPos) {
+        // travou o ponto de Lia: sai do círculo de impacto
+        const dx = s.player.pos.x - 100, dz = s.player.pos.z, l = Math.hypot(dx, dz) || 1;
+        const esc = { x: s.player.pos.x - (dz / l) * 4.6, y: 0, z: s.player.pos.z + (dx / l) * 4.6 };
+        if (!a.goal || Math.hypot(a.goal.x - esc.x, a.goal.z - esc.z) > 2) a.moveTo(esc, true);
+      } else if (useBeacon && !called && s.beacon.state === "armed" && Math.hypot(s.beacon.pos.x - b.pos.x, s.beacon.pos.z - b.pos.z) <= BADALO.hearRadius - 0.3) {
+        a.push({ beacon: true }); called = true;
+      }
+      yield; continue;
+    }
+    // ocioso / subindo: prepara o próximo ciclo
+    a.fight = true;
+    const pi = nearestPlate();
+    const plate = P[pi];
+    if (useBeacon) {
+      if (s.beacon.state === "ready" && Math.hypot(plate.x - s.player.pos.x, plate.z - s.player.pos.z) < 12) { a.fight = false; yield* r.throwBeacon(plate); a.fight = true; continue; }
+      // fica logo atrás da placa (lado de fora): o sino vem atrás de Lia e passa por cima da baliza
+      const ox = plate.x - 100, oz = plate.z, ol = Math.hypot(ox, oz) || 1;
+      const stand = { x: plate.x + (ox / ol) * 2.4, y: 0, z: plate.z + (oz / ol) * 2.4 };
+      if (Math.hypot(stand.x - s.player.pos.x, stand.z - s.player.pos.z) > 1) a.moveTo(stand); else a.stop();
+    } else {
+      if (Math.hypot(plate.x - s.player.pos.x, plate.z - s.player.pos.z) > 0.4) a.moveTo(plate); else a.stop();
+    }
+    yield;
+  }
+  r.data.stuck = { ...sc.stuckBy };
+  r.data.transitions = sc.transitions;
+  r.data.bossSecs = +sc.bossT.toFixed(1);
+  r.say(`Badalo caiu em ${r.data.bossSecs}s; quedas nas placas ${JSON.stringify(sc.stuckBy)}; transições ${sc.transitions}`);
+  yield* r.until(() => !s.world.get("grade-tunel")!.enabled, 2, "grade do túnel");
+}
+
+/** Túnel de inspeção até a boca de visita. */
+export function* f3Exit(r: PlanRunner): Plan {
+  const s = r.sim, a = r.auto;
+  a.fight = true;
+  yield* r.clear(30, 30);
+  a.fight = false;
+  yield* r.goto({ x: 112, y: 0, z: 0 }, { timeout: 25 });
+  r.data.waterAtTunnel = s.vars.agua;
+  yield* r.goto({ x: 138.5, y: 0, z: 0 }, { timeout: 30 });
+  yield* r.until(() => s.done, 2, "saída de inspeção");
+  r.say("saiu pela boca de visita");
+}
+
+export function* f3Full(r: PlanRunner, route: "passarela" | "margem" = "passarela", method: "posicao" | "baliza" | "alterna" = "alterna"): Plan {
+  yield* f3TakeTear(r);
+  yield* f3Filtros(r);
+  yield* f3Batente(r);
+  yield* f3Galeria(r, route);
+  yield* f3Boss(r, method);
+  yield* f3Exit(r);
+}

@@ -46,12 +46,14 @@ export class Autopilot {
     let best: Creature | null = null; let bd = 1e9;
     for (const c of s.creatures) {
       if (!c.alive || (this.ignorePassive && c.passive) || c.state === "emerging") continue;
+      // o Badalo só vale o tiro com o órgão exposto (a carcaça deixa passar 10%)
+      if (c.type === "badalo" && c.state !== "stuck") continue;
       const d = Math.hypot(c.pos.x - e.x, c.pos.z - e.z);
       if (d > 32) continue;
       const head = c.center(); head.y += c.height * 0.3;
       const aimPt = !s.world.blocked(e, c.center(), ["solid", "grate", "ceiling"]) ? c.center() : !s.world.blocked(e, head, ["solid", "grate", "ceiling"]) ? head : null;
       if (!aimPt) continue;
-      const threat = c.type === "riscador" ? (c.state === "windup" || c.state === "leap" ? -20 : 0) : (c.state === "aim" ? -6 : 0);
+      const threat = c.type === "riscador" ? (c.state === "windup" || c.state === "leap" ? -20 : 0) : c.type === "badalo" ? -30 : c.type === "carapaca" ? (c.state === "open" ? -25 : 4) : (c.state === "aim" ? -6 : 0);
       if (d + threat < bd) { bd = d + threat; best = c; this.aimPoint = aimPt; }
     }
     return best;
@@ -97,7 +99,7 @@ export class Autopilot {
       // esquiva lateral contra salto ou linha de luz
       this.strafeT -= DT;
       if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.9; }
-      const danger = (tgt.type === "riscador" && (tgt.state === "windup" || tgt.state === "leap")) || (tgt.type === "estilhaco" && tgt.state === "aim");
+      const danger = (tgt.type === "riscador" && (tgt.state === "windup" || tgt.state === "leap")) || (tgt.type === "estilhaco" && tgt.state === "aim") || (tgt.type === "carapaca" && (tgt.state === "stomp" || tgt.state === "charge"));
       if (danger || !this.goal) f.right = this.strafe;
     } else if (this.aimOverride) {
       this.aimAt(this.aimOverride);

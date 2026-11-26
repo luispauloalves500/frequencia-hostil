@@ -330,12 +330,23 @@ export class Sim {
     const p = { x: eye.x + dir.x * h.t, y: eye.y + dir.y * h.t, z: eye.z + dir.z * h.t };
     const fx = -Math.sin(this.player.yaw), fz = -Math.cos(this.player.yaw);
     const px = -fz, pz = fx, half = TEAR.lineLength / 2;
-    const a = { x: p.x - px * half, y: p.y, z: p.z - pz * half }, b = { x: p.x + px * half, y: p.y, z: p.z + pz * half };
     let valid = h.normal.y > 0.7 && h.box.kind !== "grate";
-    if (valid) for (const q of [a, b, { x: (a.x + p.x) / 2, y: 0, z: (a.z + p.z) / 2 }, { x: (b.x + p.x) / 2, y: 0, z: (b.z + p.z) / 2 }]) {
-      const f = this.nav.floorAt(q.x, q.z);
-      if (Number.isNaN(f) || Math.abs(f - p.y) > 0.3) { valid = false; break; }
-    }
+    const f0 = this.nav.floorAt(p.x, p.z);
+    if (Number.isNaN(f0) || Math.abs(f0 - p.y) > 0.3) valid = false;
+    // a linha vai de parede a parede: corta onde o piso acaba ou muda de altura (no máximo 4 m)
+    const reach = (sgn: number) => {
+      let d = 0;
+      while (d < half) {
+        const nd = Math.min(half, d + 0.1);
+        const f = this.nav.floorAt(p.x + px * nd * sgn, p.z + pz * nd * sgn);
+        if (Number.isNaN(f) || Math.abs(f - p.y) > 0.3) break;
+        d = nd;
+      }
+      return d;
+    };
+    const ra = valid ? reach(-1) : half, rb = valid ? reach(1) : half;
+    if (valid && ra + rb < 1.2) valid = false;
+    const a = { x: p.x - px * ra, y: p.y, z: p.z - pz * ra }, b = { x: p.x + px * rb, y: p.y, z: p.z + pz * rb };
     return { a, b, valid };
   }
 
